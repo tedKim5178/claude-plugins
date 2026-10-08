@@ -1,0 +1,111 @@
+#!/bin/bash
+# impl-profile.sh 테스트. 실행: scripts/tests/impl-profile.test.sh
+# 임시 레포(fixture 프로필)에서 get/check/adapter 동작을 검사한다 — 이 레포 프로필과 무관.
+set -uo pipefail
+source "$(dirname "$0")/lib.sh"
+P="$SCRIPTS/impl-profile.sh"
+T=$(mktemp -d); trap 'rm -rf "$T"' EXIT
+make_repo "$T/repo" && cd "$T/repo"
+BASE=.claude/impl-chain/profile.md
+FAIL=0
+ok()   { echo "  ok   $1"; }
+bad()  { echo "  FAIL $1"; FAIL=1; }
+expect_exit() { # $1=설명 $2=기대 exit, 나머지=명령
+  local d=$1 want=$2; shift 2
+  "$@" > "$T/out" 2> "$T/err"; local got=$?
+  [ "$got" = "$want" ] && ok "$d" || { bad "$d (exit $got, 기대 $want) $(head -3 "$T/err")"; }
+}
+variant() { # $1=이름, stdin=sed 스크립트 → 변형 프로필 경로 출력
+  sed -f /dev/stdin "$BASE" > "$T/$1.md"; echo "$T/$1.md"
+}
+secsed() { # $1=이름 $2=섹션 $3=sed 명령(그 섹션 안에만 적용) → 변형 프로필 경로 출력
+  sed "/^## $2\$/,/^## /{$3;}" "$BASE" > "$T/$1.md"; echo "$T/$1.md"
+}
+
+echo "get"
+[ "$($P get 서버\ 계약.mode)" = "proto-repo" ] && ok "섹션 이름에 공백" || bad "섹션 이름에 공백"
+[ "$($P get 빌드.compile)" = "./gradlew :{module}:compile{variant}Kotlin" ] && ok "값 그대로" || bad "값 그대로"
+[ "$($P get 코드.source_glob)" = "'*.kt'" ] && ok "따옴표 보존" || bad "따옴표 보존"
+[ "$($P get 코드.navigation)" = "\`NavGraph.kt\` 등" ] && ok "부분 백틱 보존" || bad "부분 백틱 보존: $($P get 코드.navigation)"
+expect_exit "없는 키 exit 2" 2 $P get 빌드.nope
+expect_exit "없는 섹션 exit 2" 2 $P get 없음.mode
+
+echo "adapter"
+[ "$($P adapter 이슈.spec_adapter)" = "$SCRIPTS/gh-spec-issue.sh" ] && ok "builtin:gh-spec-issue → 공용 어댑터" || bad "spec adapter=$($P adapter 이슈.spec_adapter)"
+[ "$($P adapter 이슈.bts_adapter)" = "$SCRIPTS/gh-bts-issue.sh" ] && ok "builtin:gh-bts-issue → 공용 어댑터" || bad "bts adapter"
+F=$(variant legacy-adapter <<< 's#^- spec_adapter: .*#- spec_adapter: .claude/scripts/gh-spec-issue.sh#')
+[ "$(IMPL_PROFILE="$F" $P adapter 이슈.spec_adapter)" = "$SCRIPTS/gh-spec-issue.sh" ] && ok "예전 레포 경로 값도 builtin으로" || bad "legacy"
+mkdir -p tools && printf '#!/bin/bash\n' > tools/my-adapter.sh && chmod +x tools/my-adapter.sh
+F=$(variant repo-adapter <<< 's#^- spec_adapter: .*#- spec_adapter: tools/my-adapter.sh#')
+[ "$(IMPL_PROFILE="$F" $P adapter 이슈.spec_adapter)" = "$(pwd -P)/tools/my-adapter.sh" ] && ok "레포 전용 어댑터는 레포 경로" || bad "repo adapter=$(IMPL_PROFILE="$F" $P adapter 이슈.spec_adapter)"
+F=$(variant bad-builtin <<< 's#^- spec_adapter: .*#- spec_adapter: builtin:jira#')
+expect_exit "모르는 builtin은 exit 1" 1 env IMPL_PROFILE="$F" $P adapter 이슈.spec_adapter
+
+echo "check — fixture 레포"
+expect_exit "기본 통과" 0 $P check
+expect_exit "analyze-spec 통과" 0 $P check --for analyze-spec
+expect_exit "analyze-bts 통과" 0 $P check --for analyze-bts
+expect_exit "start-work 통과" 0 $P check --for start-work
+
+echo "check — 실패해야 하는 변형"
+F=$(variant no-file <<< 's/x/x/'); rm "$F"
+expect_exit "프로필 없음" 1 env IMPL_PROFILE="$F" $P check
+F=$(variant no-commit <<< '/^- commit_format:/d')
+expect_exit "필수 키 누락 (git.commit_format)" 1 env IMPL_PROFILE="$F" $P check
+grep -q "git.commit_format" "$T/err" && ok "누락 키 이름을 보고" || bad "누락 키 이름을 보고"
+F=$(variant bad-mode <<< 's/^- mode: rule$/- mode: rulez/')
+expect_exit "모드 값 범위 밖" 1 env IMPL_PROFILE="$F" $P check
+F=$(secsed no-token-map "디자인 토큰" 's#^- map: .*#- map: .claude/impl-chain/adapters/none.md#')
+expect_exit "모드가 가리키는 파일 없음 (토큰 대응표)" 1 env IMPL_PROFILE="$F" $P check
+F=$(secsed token-script "디자인 토큰" 's/^- mode: map$/- mode: script/')
+expect_exit "토큰 script 모드 폐지" 1 env IMPL_PROFILE="$F" $P check
+grep -q "폐지" "$T/err" && ok "script 폐지 안내" || bad "script 폐지 안내: $(cat "$T/err")"
+F=$(secsed token-no-source "디자인 토큰" '/^- source: /d')
+expect_exit "토큰 map인데 source 없음" 1 env IMPL_PROFILE="$F" $P check
+F=$(secsed token-bad-source "디자인 토큰" 's#^\(- source: .*\)$#\1 nope/Missing.kt#')
+expect_exit "source 파일 하나 없음" 1 env IMPL_PROFILE="$F" $P check
+grep -q "nope/Missing.kt" "$T/err" && ok "없는 source 파일 보고" || bad "없는 source 파일 보고"
+F=$(variant no-repo <<< '/^- repo: /d')
+expect_exit "proto-repo인데 repo 없음" 1 env IMPL_PROFILE="$F" $P check
+F=$(variant no-spec-regex <<< '/^- spec_link_regex:/d')
+expect_exit "builtin spec 어댑터인데 spec_link_regex 없음 (analyze-spec)" 1 env IMPL_PROFILE="$F" $P check --for analyze-spec
+expect_exit "같은 변형이라도 start-work는 통과" 0 env IMPL_PROFILE="$F" $P check --for start-work
+F=$(variant no-bts-repo <<< '/^- bts_repo:/d')
+expect_exit "builtin bts 어댑터인데 bts_repo 없음 (analyze-bts)" 1 env IMPL_PROFILE="$F" $P check --for analyze-bts
+F=$(variant missing-repo-adapter <<< 's#^- spec_adapter: .*#- spec_adapter: tools/none.sh#')
+expect_exit "레포 어댑터 파일 없음 (analyze-spec)" 1 env IMPL_PROFILE="$F" $P check --for analyze-spec
+F=$(variant no-variants <<< '/^- module_variants:/d')
+expect_exit "{variant}를 쓰는데 module_variants 없음" 1 env IMPL_PROFILE="$F" $P check
+F=$(secsed discover "UI 컴포넌트" 's/^- mode: map$/- mode: discover/; /^- map: /d')
+expect_exit "UI 컴포넌트.mode discover 거부" 1 env IMPL_PROFILE="$F" $P check
+F=$(variant no-asset-target <<< '/^- asset_target:/d')
+expect_exit "asset_export 있는데 asset_target 없음" 1 env IMPL_PROFILE="$F" $P check
+F=$(variant no-mock <<< 's/^- mock_skill: .*/- mock_skill: nope-mock/')
+expect_exit "adb-mock인데 mock 스킬 없음" 1 env IMPL_PROFILE="$F" $P check
+F=$(variant bad-remote <<< 's/^- commit_format: .*/&\n- remote: no such/')
+expect_exit "git.remote 값에 공백" 1 env IMPL_PROFILE="$F" $P check
+
+echo "check — gitignore"
+mv .gitignore gi.bak
+expect_exit ".impl-spec/가 gitignore 대상이 아니면 실패" 1 $P check
+grep -q ".impl-spec/" "$T/err" && grep -q ".gitignore" "$T/err" && ok "추가 방법 안내" || bad "안내 없음: $(cat "$T/err")"
+mv gi.bak .gitignore
+
+echo "check — 통과해야 하는 변형"
+F=$(variant all-none <<< 's/^- mode: proto-repo$/- mode: none/; /^- repo: /d; /^- source: /d; s/^- mode: map$/- mode: none/; /^- map: /d; s/^- mode: rule$/- mode: hardcode/; /^- rule: /d; s/^- mode: adb-mock$/- mode: none/; /^- mock_skill: /d; /^- install: /d')
+expect_exit "모드 전부 none/hardcode + 조건부 키 없음" 0 env IMPL_PROFILE="$F" $P check
+F=$(variant no-asset <<< '/^- asset_export:/d; /^- asset_target:/d')
+expect_exit "asset 키 둘 다 없음 (선택 키)" 0 env IMPL_PROFILE="$F" $P check
+F=$(variant legacy-mirage <<< 's/^- mode: adb-mock$/- mode: adb-mirage/')
+expect_exit "예전 모드 이름 adb-mirage 허용" 0 env IMPL_PROFILE="$F" $P check
+F=$(variant adb-only <<< 's/^- mode: adb-mock$/- mode: adb/; /^- mock_skill: /d')
+expect_exit "화면 확인 adb (mock 없이)" 0 env IMPL_PROFILE="$F" $P check
+F=$(variant adb-no-install <<< 's/^- mode: adb-mock$/- mode: adb/; /^- mock_skill: /d; /^- install: /d')
+expect_exit "adb 모드도 install 필수" 1 env IMPL_PROFILE="$F" $P check
+mkdir -p "$T/home/.claude/skills/user-mock" && echo x > "$T/home/.claude/skills/user-mock/SKILL.md"
+F=$(variant user-mock <<< 's/^- mock_skill: .*/- mock_skill: user-mock/')
+expect_exit "mock 스킬이 사용자 스킬 폴더에 있어도 통과" 0 env HOME="$T/home" IMPL_PROFILE="$F" $P check
+F=$(variant remote <<< 's/^- commit_format: .*/&\n- remote: upstream/')
+expect_exit "git.remote 선택 키" 0 env IMPL_PROFILE="$F" $P check
+
+[ $FAIL = 0 ] && echo "ALL PASS" || { echo "FAILED"; exit 1; }

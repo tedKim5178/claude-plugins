@@ -1,0 +1,93 @@
+# claude-plugins
+
+Claude Code 플러그인 마켓플레이스.
+
+| 플러그인 | 설명 |
+|---------|------|
+| [`impl-chain`](plugins/impl-chain) | GitHub 이슈(기획서·BTS)에서 **분석 → 구현 → PR**까지 이어지는 작업 체인. GitHub + Android(Kotlin) 프로젝트용 |
+
+## 설치
+
+Claude Code 터미널에서:
+
+```
+/plugin marketplace add tedKim5178/claude-plugins
+/plugin install impl-chain@tedkim
+```
+
+레포에 들어오면 자동으로 설치를 안내하게 하려면, 그 레포의 `.claude/settings.json`에:
+
+```json
+{
+  "extraKnownMarketplaces": {
+    "tedkim": { "source": { "source": "github", "repo": "tedKim5178/claude-plugins" } }
+  },
+  "enabledPlugins": { "impl-chain@tedkim": true }
+}
+```
+
+업데이트: `/plugin marketplace update tedkim`
+
+---
+
+# impl-chain
+
+기획 이슈 하나를 받아 **요구 분석 → 승인 → 브랜치·구현·테스트·리뷰·커밋 → PR**까지 진행한다.
+단계마다 결과를 상태 파일(`.impl-spec/{type}-{n}.json`)로 넘겨서, 세션이 끊겨도 이어서 할 수 있다.
+
+```
+impl-spec ─┬─ analyze-spec  기획서·댓글·Figma·코드 리서치 → todo + 결정 → (사용자 승인)
+           ├─ start-work    브랜치 → 테스트 먼저 → 구현 → 컴파일·테스트 → 화면 확인 → 리뷰 2종 → 커밋
+           └─ create-pr     PR 본문 조립 → (사용자 승인) → push + PR
+analyze-bts                 BTS(버그) 이슈 분석 → start-work → create-pr
+impl-setup                  레포 프로필 생성 (레포마다 처음 한 번)
+```
+
+## 전제
+
+- **GitHub** 이슈·PR + `gh` CLI 로그인
+- **Android** 프로젝트 (화면 확인은 adb·에뮬레이터, 아이콘 export는 vector drawable)
+- 도구: `git`, `gh`, `jq`, `python3`, `bash` 3.2+
+- Figma 연동: [Figma 공식 플러그인](https://www.figma.com/developers/mcp) (MCP) 로그인
+- (선택) 서버 계약을 proto 레포로 관리하면 proto 의존성 확인
+
+## 시작하기
+
+1. 플러그인 설치 (위)
+2. 작업할 레포에서 `/impl-chain:impl-setup` — 레포를 분석해 `.claude/impl-chain/profile.md`(빌드 명령, 브랜치 형식, 디자인 토큰·컴포넌트 대응표, 문구 규칙 등)를 만들고 `.gitignore`에 `.impl-spec/`를 추가한다. 만든 프로필은 커밋해 둔다.
+3. 기획 이슈로 실행:
+   ```
+   /impl-chain:impl-spec                 # 마일스톤 → 이슈 선택
+   /impl-chain:impl-spec 4.11.0 1234     # 바로 분석
+   /impl-chain:impl-spec 좌석 등급        # 키워드로 이슈 검색
+   /impl-chain:analyze-bts               # 버그 이슈
+   ```
+
+## 동작 방식 요약
+
+- **base = 실행한 로컬 브랜치.** 작업 브랜치는 그 로컬 tip에서 따고, 원격은 PR 직전에만 확인한다 (`git.remote`, 기본 origin).
+- **승인은 두 번:** 분석 리포트(= 그 작업 브랜치의 커밋 허락), push·PR.
+- 기획서에 답이 없는 동작(에러 처리, 빈 상태, 뒤로가기, 정렬 동순위 등)은 **추천안을 붙인 질문**으로 분석 단계에서 모아 묻는다. 많으면 일괄 수락 가능.
+- Figma 화면은 레이아웃 트리·요소 표·케이스 차이로 변환되고, 컴포넌트·토큰·아이콘 결정은 대응표에 누적된다.
+- 리뷰는 두 에이전트가 병렬로: 원문 대비 요구 충족, 코드 품질(기존 동작 보존·크래시·데드 코드).
+
+## 레포마다 다른 것 — 프로필
+
+`.claude/impl-chain/profile.md` (형식: [`references/impl-profile-spec.md`](plugins/impl-chain/references/impl-profile-spec.md))
+
+| 섹션 | 예 |
+|------|----|
+| 이슈 | `spec_adapter: builtin:gh-spec-issue`, 기획서 레포, 기획 링크 정규식, BTS 레포·필터 |
+| 빌드 | compile/test 명령 템플릿, 모듈별 variant |
+| 디자인 토큰 / UI 컴포넌트 | Figma ↔ 코드 대응표, 아이콘 export 명령 |
+| 문구 | 새 문구를 어디에 어떤 키로 넣는지 규칙 |
+| 화면 확인 | `adb-mock`(mock 스킬로 서버 응답 조작) / `adb` / `none` |
+| git | 브랜치·커밋 형식, PR 원격 |
+
+## 개발
+
+```bash
+for t in plugins/impl-chain/scripts/tests/*.test.sh; do bash "$t"; done   # 스크립트 테스트 (임시 git 레포에서 실행)
+claude --plugin-dir plugins/impl-chain                                   # 설치 없이 로컬로 써 보기
+claude plugin validate .                                                 # 매니페스트 검증
+```
