@@ -105,6 +105,11 @@ expect_exit "adb 모드도 install 필수" 1 env IMPL_PROFILE="$F" $P check
 mkdir -p "$T/home/.claude/skills/user-mock" && echo x > "$T/home/.claude/skills/user-mock/SKILL.md"
 F=$(variant user-mock <<< 's/^- mock_skill: .*/- mock_skill: user-mock/')
 expect_exit "mock 스킬이 사용자 스킬 폴더에 있어도 통과" 0 env HOME="$T/home" IMPL_PROFILE="$F" $P check
+F=$(variant retention-keep <<< 's/^- test_source_hint: .*/- test_retention: keep/')
+expect_exit "빌드.test_retention 선택 키 (keep)" 0 env IMPL_PROFILE="$F" $P check
+F=$(variant retention-bad <<< 's/^- test_source_hint: .*/- test_retention: sometimes/')
+expect_exit "빌드.test_retention 값 범위 밖" 1 env IMPL_PROFILE="$F" $P check
+grep -q "test_retention" "$T/err" && ok "test_retention 값 오류 보고" || bad "test_retention 값 오류 보고: $(cat "$T/err")"
 F=$(variant remote <<< 's/^- commit_format: .*/&\n- remote: upstream/')
 expect_exit "git.remote 선택 키" 0 env IMPL_PROFILE="$F" $P check
 

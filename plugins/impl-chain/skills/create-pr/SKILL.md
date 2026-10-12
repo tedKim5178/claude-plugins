@@ -69,7 +69,7 @@ gh pr list --repo {app_repo} --head {branch} --state all --json number,url,state
 있으면 새로 만들지 않고 URL 출력 (체인이면 `pr_url` merge + stage 전이) 후 종료.
 
 ### 2. 제목
-단일 커밋이면 그 메시지, 여러 커밋이면 첫 커밋 메시지(기능 커밋)를 쓴다.
+start-work는 작업 전체를 한 커밋으로 남긴다 — 그 메시지를 쓴다 (이전 방식으로 커밋이 여러 개면 첫 커밋 메시지).
 ```bash
 git log --reverse --format=%s $(git merge-base {base_branch} HEAD)..HEAD | head -1
 ```
@@ -105,7 +105,7 @@ git log --reverse --format=%s $(git merge-base {base_branch} HEAD)..HEAD | head 
 ```
 
 체크리스트는 todo의 `status` + `note`로 만든다 (파싱 없이):
-- `done` + note가 `unit:` 또는 `visual: pass` → `[x]`
+- `done` + note가 `unit:` 또는 `visual: pass` → `[x]` (note에 `(통과 확인 후 삭제)`가 있으면 그대로 싣는다 — 테스트 코드는 PR에 없고 로컬에서 통과를 확인했다는 뜻)
 - `done` + note가 `visual: skipped` / `manual:` → `[ ]` + "⚠️ 수동 확인 필요: {note}"
 - `deferred` → 취소선 + note
 

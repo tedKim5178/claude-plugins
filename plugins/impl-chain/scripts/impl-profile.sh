@@ -132,6 +132,8 @@ cmd_check() {
   pget "UI 컴포넌트.asset_export" > /dev/null 2>&1 && need "UI 컴포넌트.asset_target"
   oneof "문구.mode" rule hardcode
   oneof "화면 확인.mode" adb-mock adb-mirage adb none   # adb-mirage = adb-mock의 예전 이름
+  # 선택 키: 작업 중 추가한 테스트 코드를 커밋에 남길지 (없으면 discard)
+  local tr; tr=$(pget "빌드.test_retention" 2>/dev/null) && { [ "$tr" = discard ] || [ "$tr" = keep ] || problems+=("빌드.test_retention 값 '$tr' — 허용: discard keep"); }
   # 선택 키: push·PR에 쓰는 원격 이름 (없으면 origin)
   local remote; remote=$(pget "git.remote" 2>/dev/null) && { [[ "$remote" =~ ^[A-Za-z0-9._-]+$ ]] || problems+=("git.remote 값 '$remote' — 원격 이름 한 단어여야 함"); }
 

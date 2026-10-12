@@ -118,7 +118,7 @@ $S check-branch spec 4895          # 현재 브랜치 == .branch 확인
 | `proto_dependency` | analyze-* | 서버 작업 없으면 `{ "required": false, "status": "n/a" }`. `status`: `n/a` / `available` / `missing`(보류·부분 진행) / `temp-local`(서버 proto PR 원문에서 필요한 부분만 임시 반영 — 로컬 테스트 전용, start-work는 T0에 한해 `.proto` 수정 허용, create-pr은 PR 거부) |
 | `size` | analyze-* | `small` / `large` — start-work의 task 분할 여부 |
 | `compile_task`, `test_task` | analyze-* | 프로필 `빌드.compile`/`빌드.test`의 `{module}`·`{variant}`(프로필 `빌드.module_variants`)를 채운 **실행할 전체 명령**. 모르면 `null` → start-work가 채움 |
-| `tasks` | start-work (large만) | `[{id, todo_ids, files, done}]` — task 커밋 직후 `done: true`. 재개 시 done인 task는 건너뛴다 |
+| `tasks` | start-work (large만) | `[{id, todo_ids, files, done}]` — task의 compile·test 통과 확인 직후 `done: true` (task별 커밋 없음 — 커밋은 전체에 하나). 재개 시 done인 task는 건너뛴다 |
 | `commits`, `verification` | start-work | 아래 verification 형식 |
 | `previous_branch` | start-work | 브랜치 전환 전 메인 워크스페이스 브랜치 (돌아갈 곳 안내용) |
 | `pr_url` | create-pr | |
@@ -134,7 +134,7 @@ $S check-branch spec 4895          # 현재 브랜치 == .branch 확인
 | `verify` | `unit`(유닛 테스트로 검증) / `visual`(화면 확인) / `manual`(둘 다 불가 — 사유를 acceptance에) |
 | `figma_screens` | 이 todo가 구현하는 화면 id (`figma.screens[].id`). `figma.status=ok`면 **visual todo는 필수** — 스크립트가 검사 |
 | `status` | `pending` → `done` / `deferred`(사용자가 범위 외로 결정한 경우만) |
-| `note` | 검증 증거 한 줄 — `impl-state.sh todo … <status> "<note>"`로 기록. 형식: `unit: SeatItemTest#T1` / `visual: pass` / `visual: skipped — 기기 없음` / `manual: {사유}` / `범위 외: {decision 질문}`. create-pr이 체크리스트를 이 값으로 만든다 |
+| `note` | 검증 증거 한 줄 — `impl-state.sh todo … <status> "<note>"`로 기록. 형식: `unit: SeatItemTest#T1` (테스트를 커밋 전에 지웠으면 `unit: SeatItemTest#T1 (통과 확인 후 삭제)`) / `visual: pass` / `visual: skipped — 기기 없음` / `manual: {사유}` / `범위 외: {decision 질문}`. create-pr이 체크리스트를 이 값으로 만든다 |
 
 ### apply 형식 (`decisions[].apply[]`)
 
@@ -164,6 +164,8 @@ analyze는 base 브랜치 위라 레포 파일을 쓰지 않는다. 반영은 st
 ```
 
 - `tests`는 `pass …` 또는 `none — {사유}` (test_task가 null이거나 테스트 인프라가 없을 때). 스크립트가 이 형식을 검사한다.
+  프로필 `빌드.test_retention`이 `discard`면 테스트 코드는 커밋에 없다 — `pass — {명령} (T1,T3) · 테스트 코드는 통과 확인 후 삭제`.
+- `commits`는 보통 1개다 (start-work는 작업 전체를 한 번에 커밋한다).
 - `visual`은 선택. 기기가 없으면 `"skipped — 연결된 기기 없음"`.
 - todo `status: done`은 "구현됨"이다. 검증 증거는 `verify` + `verification`이 따로 보여준다 (visual skipped면 PR에서 `[ ]`).
 

@@ -66,6 +66,7 @@ exit 0이면 통과. 아니면 stderr의 문제 목록을 그대로 보여주고
 | | `install` | 화면 확인.mode가 none이 아니면 | 기기 설치 명령 |
 | | `module_variants` | compile/test에 `{variant}`가 있으면 | 모듈(그룹) → variant 대응. 모듈마다 빌드 변형이 다른 레포용 |
 | | `test_source_hint` | | 모듈의 테스트 소스 위치 (테스트가 있는지 판단용) |
+| | `test_retention` | | `discard`(기본 — 키가 없을 때도) \| `keep`. `discard`: start-work가 이번 작업에서 추가한 테스트 코드를 통과 확인·리뷰 뒤에 지우고 커밋에 넣지 않는다 (start-work Step 9-1). `keep`: 테스트도 커밋한다 |
 | 코드 | `source_glob` | ✅ | 코드 검색 glob. 여러 개면 공백으로 구분하고 각각 따옴표로 (예: `'*.kt'`, `'*.ts' '*.tsx'`) — `git grep … -- {source_glob}`에 그대로 붙인다 |
 | | `trace_path` | ✅ | 화면 요구를 따라갈 레이어 순서 |
 | | `navigation` | | 라우트/네비게이션 정의 위치 |

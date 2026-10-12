@@ -1,6 +1,6 @@
 ---
 name: start-work
-description: 버그 수정 또는 기능 구현을 시작할 때 사용. 브랜치 생성부터 코드 수정, 컴파일, 테스트, 커밋까지 수행
+description: 버그 수정 또는 기능 구현을 시작할 때 사용. 브랜치 생성부터 코드 수정, 컴파일, 테스트, 리뷰, 커밋(한 개)까지 수행
 invocable: true
 ---
 
@@ -10,7 +10,9 @@ invocable: true
 # Start Work
 
 메인 워크스페이스에서 작업 브랜치를 만들고
-**테스트 작성 → 구현 → 컴파일 → 테스트 → (화면 확인) → 리뷰 → 커밋**까지 수행한다.
+**테스트 작성 → 구현 → 컴파일 → 테스트 → (화면 확인) → 리뷰 → 테스트 정리 → 커밋**까지 수행한다.
+
+**커밋은 작업 전체에 하나다.** 규모(small/large)와 무관하게 리뷰가 끝난 뒤 Step 10에서 한 번만 커밋한다 — task별·리뷰 반영분 커밋으로 나누지 않는다.
 
 ## 호출 경로 2가지
 
@@ -97,7 +99,7 @@ ${CLAUDE_PLUGIN_ROOT}/scripts/setup-branch.sh {base_branch} {branch}
 | 4 | 로컬 base 브랜치 없음 (이름 오류·삭제됨) → 보고 후 중단 |
 | 1 | 기타 git 오류 → 메시지 그대로 보고 후 중단 |
 
-이후 모든 작업은 이 브랜치에서 한다. 체인이면 매 커밋 전에 `$S check-branch {type} {n}`.
+이후 모든 작업은 이 브랜치에서 한다. 체인이면 커밋 전에 `$S check-branch {type} {n}`.
 
 ### 2-1. UI 결정 반영 (체인 — `decisions[].apply`가 있을 때)
 
@@ -113,7 +115,7 @@ python3 ${CLAUDE_PLUGIN_ROOT}/scripts/apply-ui-decisions.py {type} {n}
 | 1·2 | 메시지 그대로 보고 후 중단 |
 
 재개 시 다시 실행해도 된다 — 반영된 항목은 `SKIP`.
-재실행에서 SKIP된 에셋이 아직 추적되지 않았으면(`git ls-files --error-unmatch {target}` 실패) `git add -N`. 반영분은 첫 작업 커밋(large면 첫 task 커밋)에 포함한다.
+재실행에서 SKIP된 에셋이 아직 추적되지 않았으면(`git ls-files --error-unmatch {target}` 실패) `git add -N`. 반영분은 Step 10의 커밋에 포함한다.
 
 ### 3. 작업 분할 (size 기준)
 
@@ -125,10 +127,10 @@ python3 ${CLAUDE_PLUGIN_ROOT}/scripts/apply-ui-decisions.py {type} {n}
   task마다 **순서대로** `general-purpose` 서브에이전트를 스폰한다 (같은 작업 트리이므로 병렬 금지).
   전달: 상태 파일 경로, 담당 todo id, research 파일 경로, Step 4~7 절차(이 문서의 해당 부분), compile/test task.
   서브에이전트는 커밋하지 않는다. 돌아오면 메인이 `git diff --stat`으로 범위를 확인하고,
-  compile·test를 직접 다시 돌려 통과를 확인한 뒤 task 단위로 커밋한다 (Step 10 형식) → `$S add-commit` →
-  `tasks` 배열에서 해당 task에 `"done": true`를 넣어 merge. **재개 시 `done`인 task는 건너뛴다.**
-  **large의 task 커밋은 "리뷰 후 커밋" 규칙의 예외다** — 전체 리뷰(Step 9)는 모든 task가 끝난 뒤 한 번,
-  base 이후 전체 diff에 대해 수행하고, 리뷰 수정분은 별도 커밋으로 남긴다. push 전이므로 리뷰에서 막히면 PR로 가지 않는다.
+  compile·test를 직접 다시 돌려 통과를 확인한 뒤 `tasks` 배열에서 해당 task에 `"done": true`를 넣어 merge한다.
+  **task 단위로 커밋하지 않는다** — 변경은 작업 트리에 쌓아 두고(신규 파일은 `git add -N`), 모든 task가 끝난 뒤
+  Step 8~9(화면 확인·리뷰)를 전체 diff에 대해 한 번 수행하고 Step 10에서 한 번에 커밋한다.
+  **재개 시 `done`인 task는 건너뛴다** (작업 트리에 그 task의 변경이 남아 있는지 `git status`로 확인하고, 없으면 `done`을 지우고 다시 한다).
 
 ### 3-1. UI 스펙 (체인 + `figma.status=ok` + visual todo가 있을 때 — 생략 불가)
 
@@ -150,6 +152,8 @@ python3 ${CLAUDE_PLUGIN_ROOT}/scripts/apply-ui-decisions.py {type} {n}
 - 실행해서 **기대한 이유로 실패하는지** 확인한다 (새 심볼이 없어서 나는 컴파일 에러, 또는 단언 실패).
   이미 통과하면 테스트가 acceptance를 단언하지 않는 것이다 — 고친다.
 - 모듈에 테스트 인프라가 없으면 todo를 `manual`로 취급하고 사유를 `verification.notes`에 남긴다.
+- 프로필 `빌드.test_retention`이 `discard`(기본)면 여기서 쓰는 테스트는 **검증용 임시 코드**다 — Step 9-1에서 지우므로,
+  새 테스트는 가능하면 **새 파일**에 쓴다 (기존 테스트 파일에 케이스를 끼워 넣으면 정리할 때 가려내야 한다).
 
 `test-driven-development` 스킬(superpowers)의 RED-GREEN 원칙을 따른다.
 
@@ -204,7 +208,26 @@ Step 4의 테스트가 전부 통과해야 한다. 기존 테스트가 깨지면
 리뷰어가 "todo 해석 오류"를 지적하면 코드만 고치지 말고, todo acceptance도 원문대로 고쳐 merge한다
 (해석이 애매하면 Step 0-1처럼 사용자에게 묻는다). 단독 경로에서는 impl-reviewer 결과만으로 판정한다.
 
-### 10. 커밋
+### 9-1. 테스트 정리 (리뷰 통과 후, 커밋 직전)
+
+프로필 `빌드.test_retention` (`${CLAUDE_PLUGIN_ROOT}/scripts/impl-profile.sh get 빌드.test_retention`, 없으면 `discard`):
+
+| 값 | 처리 |
+|----|------|
+| `discard` (기본) | **이번 작업에서 추가한 테스트 코드를 커밋에 넣지 않는다.** 아래 절차로 지운다 |
+| `keep` | 지우지 않는다 — 테스트도 Step 10의 커밋에 포함한다 |
+
+`discard` 절차 — Step 7의 테스트가 통과하고 Step 9 리뷰가 끝난 **뒤에만** 한다 (리뷰어는 테스트가 acceptance를 단언하는지 본다):
+1. 지우기 전에 증거를 남긴다: todo별로 통과한 테스트 이름(`{클래스}#{케이스}`)과 실행한 명령을 적어 둔다 → Step 11의 note·`verification.tests`.
+2. 이번 작업에서 **새로 만든 테스트 파일**을 삭제한다 (`git diff --name-only --diff-filter=A $(git merge-base {base_branch} HEAD)` 중 테스트 소스 — 프로필 `빌드.test_source_hint` 아래). 비게 된 디렉토리도 지운다.
+3. **기존 테스트 파일에 추가한 케이스·헬퍼**는 그 부분만 되돌린다. 추가만 했으면 `git checkout -- {파일}`.
+4. 테스트만을 위해 추가한 것(테스트 전용 의존성·fixture·fake, 프로덕션 코드의 테스트용 훅)도 함께 되돌린다.
+5. **지우지 않는 것:** 프로덕션 동작이 바뀌어서 **기존 테스트의 기대값을 고친 수정** — 되돌리면 기존 테스트가 깨진다. 이것은 커밋에 포함한다.
+6. `git status --short`로 테스트 소스에 이번 작업의 추가분이 남지 않았는지 확인한다. 프로덕션 코드를 건드렸으면(4번) Step 6을 다시 돌린다.
+
+`verification.tests`는 실제로 통과한 기록이므로 `pass — {명령} (T1,T3) · 테스트 코드는 통과 확인 후 삭제`로 남긴다.
+
+### 10. 커밋 (한 번)
 
 커밋 허락 규칙은 impl-spec "체인 공통 규칙"을 따른다 (analyze 승인 = 이 브랜치 커밋 허락, push는 별도).
 ```bash
@@ -212,12 +235,15 @@ git log --oneline -10      # 스타일 파악
 git add {수정·신규 파일들}   # -A / . 금지 — 관련 없는 파일이 섞인다
 git commit -m "{프로필 git.commit_format}"
 ```
-- large는 task별 커밋 + 리뷰 수정분 커밋 (형식 동일, type = `fix`, 요약 = "리뷰 반영" — 예: `fix({scope}) : 리뷰 반영`)
-- 체인: 커밋마다 `$S add-commit {type} {n}`
+- **커밋은 하나다** — small·large 모두. task별 커밋, "리뷰 반영" 커밋을 따로 만들지 않는다 (리뷰 수정분은 커밋 전에 이미 작업 트리에 반영돼 있다).
+  메시지는 작업 전체를 요약한다 (본문에 todo별 변경을 항목으로 적어도 된다).
+- 커밋한 뒤에 고칠 것이 나왔고 **아직 push 전**이면 새 커밋을 쌓지 말고 `git commit --amend`로 같은 커밋에 넣는다 (체인이면 상태 파일 `commits`를 새 sha 하나로 교체해 merge). 이미 push된 커밋은 amend하지 않는다 — 그때는 새 커밋.
+- `discard`면 커밋에 이번 작업의 테스트 코드가 없어야 한다 — `git show --stat HEAD`로 확인한다.
+- 체인: 커밋 후 `$S add-commit {type} {n}`
 
 ### 11. 상태 파일 갱신 (체인 — 생략 불가)
 ```bash
-$S todo {type} {n} T1 done "unit: SeatItemTest#T1"   # todo마다 증거를 note로 (규격의 note 형식)
+$S todo {type} {n} T1 done "unit: SeatItemTest#T1"   # todo마다 증거를 note로 (규격의 note 형식). 테스트를 지웠으면(Step 9-1) "unit: SeatItemTest#T1 (통과 확인 후 삭제)"
 $S todo {type} {n} T5 deferred "범위 외: {decision 질문}"   # 사용자가 범위 외로 정한 것만
 $S merge {type} {n} <<'EOF'
 {"verification": {"compile":"pass", "tests":"pass — {task} (T1,T3)",
@@ -239,6 +265,7 @@ $S stage {type} {n} implemented
 
 - 브랜치 전환 전 **커밋 안 된 변경이 있으면 멈춘다.** stash·reset·checkout으로 치우지 않는다.
 - base는 체인에서는 상태 파일, 단독에서는 사용자 선택. 여기서 새로 결정하지 않는다.
-- 컴파일 + 테스트 + 리뷰 통과 후에만 커밋 (large의 task 커밋만 예외 — Step 3).
+- 컴파일 + 테스트 + 리뷰 통과 후에만, **한 번** 커밋한다 (large도 task별로 나누지 않는다).
+- 프로필 `빌드.test_retention`이 `discard`(기본)면 이번 작업에서 추가한 테스트 코드는 통과 확인·리뷰 뒤 지우고 커밋에 넣지 않는다 (Step 9-1).
 - `$S` (impl-state.sh) 호출은 **체인 경로에서만** 한다. 단독 경로에는 상태 파일이 없다.
 - `.proto` 파일은 수정하지 않는다. **예외**: `proto_dependency.status`가 `temp-local`이면 T0에 한해 acceptance에 적힌 서버 PR 원문 정의를 글자 그대로 옮긴다 (로컬 테스트 전용 — create-pr이 PR을 거부한다).
