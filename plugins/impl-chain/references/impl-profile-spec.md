@@ -83,7 +83,7 @@ exit 0이면 통과. 아니면 stderr의 문제 목록을 그대로 보여주고
 | | `asset_target` | asset_export가 있으면 | 변환 결과를 둘 레포 상대 경로 템플릿 (`{name}`) |
 | 문구 | `mode` | ✅ | `rule` \| `hardcode` |
 | | `rule` | mode=rule | 문구 규칙 문서 (어디에, 어떤 키로, 리뷰 시 무엇을 검사하는지) |
-| 화면 확인 | `mode` | ✅ | `adb-mock`(기기 + 서버 응답 mock 스킬 — 예전 이름 `adb-mirage`도 허용) \| `adb`(기기만 — 서버 상태가 필요한 케이스는 수동 확인) \| `none` |
+| 화면 확인 | `mode` | ✅ | `adb-mock`(기기 + 서버 응답 mock 스킬) \| `adb`(기기만 — 서버 상태가 필요한 케이스는 수동 확인) \| `none` |
 | | `mock_skill` | mode=adb-mock | 서버 응답 mock 스킬 이름 — 레포 `.claude/skills/` 또는 `~/.claude/skills/`에 있어야 한다 |
 | | `avd` | | 연결 기기가 없을 때 visual-verifier가 헤드리스로 부팅할 AVD 이름 (없으면 `emulator -list-avds` 첫 번째) |
 

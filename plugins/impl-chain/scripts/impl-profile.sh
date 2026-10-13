@@ -131,7 +131,7 @@ cmd_check() {
   # 에셋 자동 export는 선택. 쓰면 결과를 둘 경로 템플릿도 있어야 한다
   pget "UI 컴포넌트.asset_export" > /dev/null 2>&1 && need "UI 컴포넌트.asset_target"
   oneof "문구.mode" rule hardcode
-  oneof "화면 확인.mode" adb-mock adb-mirage adb none   # adb-mirage = adb-mock의 예전 이름
+  oneof "화면 확인.mode" adb-mock adb none
   # 선택 키: 작업 중 추가한 테스트 코드를 커밋에 남길지 (없으면 discard)
   local tr; tr=$(pget "빌드.test_retention" 2>/dev/null) && { [ "$tr" = discard ] || [ "$tr" = keep ] || problems+=("빌드.test_retention 값 '$tr' — 허용: discard keep"); }
   # 선택 키: push·PR에 쓰는 원격 이름 (없으면 origin)
@@ -152,8 +152,8 @@ cmd_check() {
   fi
   [ "$(mode "UI 컴포넌트")" = map ]      && needfile "UI 컴포넌트.map"
   [ "$(mode "문구")" = rule ]            && needfile "문구.rule"
-  case "$(mode "화면 확인")" in adb|adb-mock|adb-mirage) need "빌드.install" ;; esac
-  if [ "$(mode "화면 확인")" = adb-mock ] || [ "$(mode "화면 확인")" = adb-mirage ]; then
+  case "$(mode "화면 확인")" in adb|adb-mock) need "빌드.install" ;; esac
+  if [ "$(mode "화면 확인")" = adb-mock ]; then
     # mock 스킬은 레포(.claude/skills) 또는 사용자 스킬 폴더(~/.claude/skills)에 있어야 한다
     local ms; ms=$(pget "화면 확인.mock_skill") && [ -n "$ms" ] \
       && { [ -f "$ROOT/.claude/skills/$ms/SKILL.md" ] || [ -f "$HOME/.claude/skills/$ms/SKILL.md" ] \
