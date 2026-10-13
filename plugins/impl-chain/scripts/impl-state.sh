@@ -85,6 +85,23 @@ validate_analyzed() { # stdin=json → 문제 목록 출력
     (if .figma.status == "ok" then
        ([.figma.screens[]?.id] as $ids | .ui_specs[]?.screens[]? as $s | select(($ids | index($s)) == null) | "ui_specs 화면 \($s)가 figma.screens에 없음")
      else empty end),
+    # analyze Step 4-2: 화면 확인 케이스 — visual-verifier가 케이스를 즉석에서 정하지 않도록 승인 전에 확정한다
+    (if has("visual_cases") and (.visual_cases | type) != "array" then "visual_cases는 배열이어야 함"
+     else
+       ([.todo_items[]?.id] as $tids
+        | (.visual_cases // []) as $vc
+        | ($vc[] | select(type != "object" or (.id // "") == "" or (.todo_id // "") == "" or (.scenario // "") == ""
+                          or (.condition // "") == "" or (.expect // "") == "")
+           | "visual_cases 항목 불완전 (id/todo_id/scenario/condition/expect): \(if type == "object" then (.id // "?") else "?" end)"),
+          ($vc[] | select(type == "object") | select((.kind // "") | IN("target","regression") | not)
+           | "visual_cases kind는 target|regression: \(.id // "?")"),
+          ($vc[] | select(type == "object" and (.todo_id // "") != "") | select(.todo_id as $t | ($tids | index($t)) == null)
+           | "visual_cases \(.id // "?")의 todo_id \(.todo_id)가 todo_items에 없음"),
+          ($vc | map(select(type == "object") | .id // empty) | group_by(.) | .[] | select(length > 1) | "visual_cases id 중복: \(.[0])"),
+          (.todo_items[]? | select(.verify == "visual") | .id as $id
+           | select(any($vc[]; type == "object" and .todo_id == $id and .kind == "target") | not)
+           | "visual todo \($id)에 target 케이스 없음 — analyze Step 4-2(visual_cases) 필요"))
+     end),
     # start-work Step 2-1이 반영할 항목 — 형식이 틀리면 반영 스크립트가 중간에 멈춘다
     (.ui_specs[]? | select((.file // "") == "") | "ui_specs 항목에 file 없음: \(.screens // [] | join(","))"),
     (.decisions[]? | select(type == "object" and has("apply") and .apply != null and (.apply | type) != "array") | "decision apply는 배열이어야 함: \(.question // "?")"),

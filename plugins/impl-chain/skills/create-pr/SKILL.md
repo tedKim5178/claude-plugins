@@ -94,7 +94,7 @@ git log --reverse --format=%s $(git merge-base {base_branch} HEAD)..HEAD | head 
 
 ## 🧪 검증
 * 테스트: {verification.tests}
-* 화면: {verification.visual}
+* 화면: {verification.visual} {mock으로 만든 화면이면 그 사실을 한 구절로}
 * 리뷰: 스펙 {review.spec} / 품질 {review.quality}
 
 ## 🤔 결정 사항
@@ -123,13 +123,19 @@ ${CLAUDE_PLUGIN_ROOT}/scripts/check-pr-ready.sh {base_branch} {proto_dependency.
 
 ### 4. 사용자 확인 (필수)
 ```
+{⚠️ 화면 확인을 하지 않았습니다 — {사유}   ← verification.visual이 skipped일 때만, 맨 위에}
 브랜치: {branch} → base: {base_branch}
 커밋: {commits 개수}개 — {제목}
 이슈: {issue_url}
+화면 확인: {verification.visual} — 리포트: {verification.visual_report}   ← visual todo가 있을 때
 (본문 미리보기)
 
 push하고 PR을 생성할까요?
 ```
+- `verification.visual_report`가 있으면 **경로를 링크로** 보여준다 — 사용자가 push 전에 스크린샷을 직접 보는 지점이다. 리포트를 본 뒤 고칠 것이 나오면 승인 전에 반영한다.
+- 사용자가 리포트를 공유용 페이지로 원하면 `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/visual-report.py --fragment {state_file} {output_dir}`로 껍데기 없는 본문을 만들어 게시한다 (스크린샷에 계정·위치 등 개인 정보가 찍혀 있을 수 있다 — 요청받았을 때만, 비공개로).
+- 리포트의 스크린샷은 로컬 파일이라 PR 본문에 넣지 않는다. 본문 "🧪 검증"에는 판정 요약만, "📌 추가 코멘트"에는 확인하지 못한 것(`verification.notes`)을 싣는다.
+
 승인 → Step 5. 수정 요청 → 반영 후 재확인.
 
 ### 5. Push

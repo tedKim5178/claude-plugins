@@ -186,9 +186,14 @@ Step 4의 테스트가 전부 통과해야 한다. 기존 테스트가 깨지면
 
 ### 8. 화면 확인 (visual todo가 있을 때)
 프로필 `화면 확인.mode`가 `none`이면 스폰하지 않고 `verification.visual = "skipped — 화면 확인 수단 없음 (프로필)"`, visual todo의 note는 `visual: skipped — 프로필 none`.
-그 외에는 `visual-verifier` 에이전트를 스폰한다: `state_file`, `output_dir: .impl-spec/{type}-{n}.visual/`.
-- `SKIPPED`(기기 없음 등)면 사유를 기록하고 진행 — visual todo는 PR에 "수동 확인 필요"로 남는다.
-- FAIL 케이스는 Step 9 전에 고치고 Step 6부터 다시.
+그 외에는 `visual-verifier` 에이전트를 **반드시** 스폰한다: `state_file`, `output_dir: .impl-spec/{type}-{n}.visual/`.
+- **기기가 있는지 메인이 직접 판단하지 않는다** (`adb devices`를 쳐 보고 "기기 없음"으로 건너뛰지 않는다). adb는 PATH에 없을 수 있고, 기기가 없으면 에이전트가 AVD를 부팅한다 — `SKIPPED`는 에이전트가 돌려줄 때만 기록한다.
+- 에이전트는 상태 파일 `visual_cases`(analyze에서 승인된 확인 계획)를 실행하고 `{output_dir}/report.html`(조건별 스크린샷 비교)을 만든다.
+  돌아오면 메인이 **스크린샷을 직접 열어**(대상 케이스 전부 + 회귀 케이스 하나 이상 Read) 에이전트의 판정과 맞는지 본 뒤 기록한다:
+  `echo '{"verification":{"visual_report":".impl-spec/{type}-{n}.visual/report.html"}}' | $S merge {type} {n}`
+- `SKIPPED`면 사유를 기록하고 진행 — visual todo는 PR에 "수동 확인 필요"로 남고, create-pr이 push 확인 화면 맨 위에 경고로 띄운다.
+- `NOT_RUN`(계획에 있었으나 못 본 케이스)·`MANUAL`은 `verification.notes`에 케이스 id와 사유를 그대로 옮긴다. 대상(`target`) 케이스가 NOT_RUN·MANUAL인 todo의 note는 `visual: pass`가 아니라 `visual: skipped — {사유}`다.
+- FAIL 케이스는 Step 9 전에 고치고 Step 6부터 다시 (고친 뒤 에이전트를 다시 스폰해 리포트를 새로 만든다).
 
 ### 9. 리뷰 — 두 에이전트를 **한 메시지에서 병렬로**
 
@@ -247,7 +252,8 @@ $S todo {type} {n} T1 done "unit: SeatItemTest#T1"   # todo마다 증거를 note
 $S todo {type} {n} T5 deferred "범위 외: {decision 질문}"   # 사용자가 범위 외로 정한 것만
 $S merge {type} {n} <<'EOF'
 {"verification": {"compile":"pass", "tests":"pass — {task} (T1,T3)",
-  "review":{"spec":"PASS","quality":"PASS"}, "visual":"{결과 또는 skipped — 사유}", "notes":[...]}}
+  "review":{"spec":"PASS","quality":"PASS"}, "visual":"{결과 또는 skipped — 사유}",
+  "visual_report":"{Step 8의 report.html 경로 — 없으면 키 생략}", "notes":[...]}}
 EOF
 $S stage {type} {n} implemented
 ```
@@ -256,7 +262,7 @@ $S stage {type} {n} implemented
 ### 12. 완료 보고
 - 브랜치 / base / 이전 브랜치 (`previous_branch` — "메인 워크스페이스가 {branch}로 전환됨")
 - todo별 결과 (T1 ✅ unit / T2 ✅ visual / T4 ⚠️ manual — 사유)
-- 테스트·리뷰·화면 결과
+- 테스트·리뷰·화면 결과 — 화면 확인을 했으면 **리포트 경로(`verification.visual_report`)와 확인하지 못한 것**을 함께 (사용자가 열어 볼 수 있게)
 - 커밋 해시 + 메시지
 
 ---

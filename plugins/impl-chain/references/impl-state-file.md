@@ -86,6 +86,10 @@ $S check-branch spec 4895          # 현재 브랜치 == .branch 확인
     "screens": [{ "id": "S4", "node_id": "14661:139923", "group": "계정 현황", "case": "계정 2개 이상" }]
   },
   "ui_specs": [{ "group": "계정 현황", "screens": ["S4"], "file": ".impl-spec/spec-4895.figma/ui-spec/S4.md" }],
+  "visual_cases": [
+    { "id": "V1", "todo_id": "T1", "scenario": "좌석 목록", "condition": "PREMIUM", "kind": "target", "expect": "'프리미엄' 뱃지" },
+    { "id": "V2", "todo_id": "T1", "scenario": "좌석 목록", "condition": "STANDARD", "kind": "regression", "expect": "뱃지 없음" }
+  ],
   "proto_dependency": { "required": true, "status": "available", "note": "SeatInfo.grade 이미 의존성에 있음" },
   "files_to_modify": [
     { "path": "app/src/.../SeatItem.kt", "action": "수정" }
@@ -114,6 +118,7 @@ $S check-branch spec 4895          # 현재 브랜치 == .branch 확인
 | `decisions` / `open_questions` | analyze-* | `init` 시점에 `open_questions`는 **반드시 빈 배열**. decision이 특정 todo에 영향을 주면 `todo_ids`. 선택: `evidence`(근거 — figma-ui-spec auto는 필수), `key`(figma-ui-spec 판정 키), `ui_spec`(나온 그룹의 ui-spec 파일 — 그룹 재실행 시 이 값으로 지운다) |
 | `figma` | analyze-* | `figma-collector` 결과. `status`: `ok`(화면 확정) / `none`(링크 없음). **BLOCKED로는 기록할 수 없다** — 분석을 멈추고 사용자가 해결 |
 | `ui_specs` | analyze-* Step 4-1 | `[{group, screens, file}]` — figma-ui-spec 결과. `figma.status=ok`이고 visual todo가 있으면 visual todo의 모든 화면을 덮어야 한다 (init 검사). start-work·리뷰어·visual-verifier가 ui-spec을 여기서 찾는다 |
+| `visual_cases` | analyze-* Step 4-2 | 화면 확인 계획 — 아래 visual_cases 규칙. visual-verifier가 그대로 실행하고 `visual-report.py`가 리포트로 만든다 |
 | `decisions[].apply` | analyze-* (생성), start-work Step 2-1 (반영) | 레포에 반영할 UI 결정 (컴포넌트·토큰 대응표 행, 에셋). 아래 apply 형식 |
 | `proto_dependency` | analyze-* | 서버 작업 없으면 `{ "required": false, "status": "n/a" }`. `status`: `n/a` / `available` / `missing`(보류·부분 진행) / `temp-local`(서버 proto PR 원문에서 필요한 부분만 임시 반영 — 로컬 테스트 전용, start-work는 T0에 한해 `.proto` 수정 허용, create-pr은 PR 거부) |
 | `size` | analyze-* | `small` / `large` — start-work의 task 분할 여부 |
@@ -135,6 +140,24 @@ $S check-branch spec 4895          # 현재 브랜치 == .branch 확인
 | `figma_screens` | 이 todo가 구현하는 화면 id (`figma.screens[].id`). `figma.status=ok`면 **visual todo는 필수** — 스크립트가 검사 |
 | `status` | `pending` → `done` / `deferred`(사용자가 범위 외로 결정한 경우만) |
 | `note` | 검증 증거 한 줄 — `impl-state.sh todo … <status> "<note>"`로 기록. 형식: `unit: SeatItemTest#T1` (테스트를 커밋 전에 지웠으면 `unit: SeatItemTest#T1 (통과 확인 후 삭제)`) / `visual: pass` / `visual: skipped — 기기 없음` / `manual: {사유}` / `범위 외: {decision 질문}`. create-pr이 체크리스트를 이 값으로 만든다 |
+
+### visual_cases 규칙
+
+화면에서 무엇을 어떤 조건으로 볼지 — **승인 전에 확정한다.** 한 행이 화면 한 장이다.
+
+| 키 | 의미 |
+|----|------|
+| `id` | `V1`, `V2`… 스크린샷 파일 이름(`V1.png`)과 results.json의 `case_id`가 이 id다. 중복 불가 |
+| `todo_id` | 이 케이스가 검증하는 todo (`verify`가 visual이 아니어도 된다 — 화면으로 볼 수 있는 manual todo) |
+| `scenario` | 화면·상태. 같은 scenario끼리 리포트에서 나란히 놓인다 — 조건만 다른 케이스는 같은 문자열을 쓴다 |
+| `condition` | 그 화면을 가르는 조건 (서비스 타입, 등급, 응답 값…) |
+| `kind` | `target`(이번에 바뀌는 조건) / `regression`(바뀌면 안 되는 조건 — 계획 검증의 AS-IS 보존 대상에서 뽑는다) |
+| `expect` | 화면에서 보여야 하는 것. acceptance의 문구·요소 그대로 |
+
+`init`이 검사한다: 항목 형식, `todo_id`가 todo에 있는지, id 중복, **visual todo마다 `target` 케이스가 하나 이상** 있는지.
+
+화면 확인 산출물 (`.impl-spec/{type}-{n}.visual/`): `{case_id}.png`, `results.json`(visual-verifier가 기록 — 형식은 `${CLAUDE_PLUGIN_ROOT}/scripts/visual-report.py` 머리말),
+`report.html`(`visual-report.py`가 생성 — 계획에 있는데 결과가 없는 케이스는 "확인 안 함"으로 실린다).
 
 ### apply 형식 (`decisions[].apply[]`)
 
@@ -159,6 +182,7 @@ analyze는 base 브랜치 위라 레포 파일을 쓰지 않는다. 반영은 st
   "tests": "pass — ./gradlew :app:testDebugUnitTest (T1, T3)",
   "review": { "spec": "PASS", "quality": "PASS" },
   "visual": "pass — T2 (스크린샷 3장)" ,
+  "visual_report": ".impl-spec/spec-4895.visual/report.html",
   "notes": ["T4 manual: 실기기 결제 필요"]
 }
 ```
@@ -166,14 +190,15 @@ analyze는 base 브랜치 위라 레포 파일을 쓰지 않는다. 반영은 st
 - `tests`는 `pass …` 또는 `none — {사유}` (test_task가 null이거나 테스트 인프라가 없을 때). 스크립트가 이 형식을 검사한다.
   프로필 `빌드.test_retention`이 `discard`면 테스트 코드는 커밋에 없다 — `pass — {명령} (T1,T3) · 테스트 코드는 통과 확인 후 삭제`.
 - `commits`는 보통 1개다 (start-work는 작업 전체를 한 번에 커밋한다).
-- `visual`은 선택. 기기가 없으면 `"skipped — 연결된 기기 없음"`.
+- `visual`은 선택. visual-verifier가 `SKIPPED`를 돌려줬으면 `"skipped — {에이전트가 준 사유}"` (메인이 직접 기기 유무를 판단해 적지 않는다).
+- `visual_report`는 화면 확인을 했을 때의 리포트 경로. create-pr이 push 확인 화면에서 보여준다.
 - todo `status: done`은 "구현됨"이다. 검증 증거는 `verify` + `verification`이 따로 보여준다 (visual skipped면 PR에서 `[ ]`).
 
 ### stage 전이
 
 | 전이 | 스크립트가 검사하는 조건 |
 |------|------------------------|
-| (없음) → `analyzed` | `init`: 필수 필드, todo 형식, `open_questions` 0개, research 파일 존재, 브랜치명 형식, `figma.status` ok/none, visual todo ↔ figma 화면 연결, visual todo 화면 ↔ `ui_specs` 커버, `ui_specs` 파일·asset source 존재, `apply` 형식 |
+| (없음) → `analyzed` | `init`: 필수 필드, todo 형식, `open_questions` 0개, research 파일 존재, 브랜치명 형식, `figma.status` ok/none, visual todo ↔ figma 화면 연결, visual todo 화면 ↔ `ui_specs` 커버, `ui_specs` 파일·asset source 존재, `apply` 형식, `visual_cases` 형식·visual todo마다 target 케이스 |
 | `analyzed` → `implemented` | commits ≥1, compile pass, tests 기록, review spec·quality PASS, 모든 todo `done`/`deferred` |
 | `implemented` → `pr_created` | `pr_url` 존재 |
 

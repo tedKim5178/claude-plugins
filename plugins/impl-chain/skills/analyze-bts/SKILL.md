@@ -163,6 +163,12 @@ analyze-spec Step 4-1과 같다. 파라미터의 `spec-{n}`을 `bts-{n}`으로 �
 결과 병합은 `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/merge-ui-results.py .impl-spec/bts-{n}.draft.json {RESULT 경로들}` — 메인이 JSON을 옮겨 적지 않는다.
 확인 루프에서 visual todo나 그 화면이 바뀌면 바뀐 그룹만 다시 실행하고 그 result.json을 스크립트에 다시 넣는다 (그 그룹 기여분만 교체). 질문의 답은 Step 6 확인 루프에서 받는다.
 
+### 4-2. 화면 확인 케이스 (visual todo가 있을 때 — 생략 불가)
+
+analyze-spec Step 4-2와 같다 — 화면에서 볼 케이스를 `visual_cases`(scenario·condition·kind·expect)로 승인 전에 확정한다.
+버그 수정에서는 **재현 조건이 `target`**, 고치려는 분기를 공유하는 다른 상태·서비스 타입(위 AS-IS 보존 열거)이 **`regression`** 이다.
+Step 5 리포트 "작업 설정"에 표 전체를 싣는다.
+
 ### 5. 수정 방안 제시
 
 **Step 6(브랜치명 결정)을 먼저 수행한 뒤** 이 리포트를 출력한다 — 리포트의 "작업 설정"에 그 값이 들어간다.
@@ -238,6 +244,10 @@ open_questions가 남아 있으면 리포트 전에 Step 6의 확인 루프 규�
 - **제안 브랜치명**: `[프로필 git.branch_format의 bts 형식]`
 - **컴파일**: `[compile_task — 실행할 전체 명령]`
 - **테스트**: `[test_task]` (없으면 "없음 — 신규 테스트 작성 대상: ...")
+- **화면 확인 케이스** (visual todo가 있을 때 — Step 4-2):
+
+| id | todo | 화면·상태 | 조건 | 구분 (대상/회귀) | 화면에서 보여야 하는 것 |
+|----|------|----------|------|-----------------|----------------------|
 
 ## 📚 참고 자료
 
@@ -272,7 +282,7 @@ Step 5 리포트에 **base 브랜치(표시) / 제안 브랜치명 / 검증 커�
 
 draft를 최종 내용으로 갱신한 뒤 (규격 필드: issue_title, issue_url(issue.json의 `.issue.url`),
 spec_url(없으면 null), milestone: null, base_branch, branch, size, research_files, todo_items,
-decisions(+apply), open_questions: [], figma, ui_specs(Step 4-1 — visual todo 없거나 Figma 없으면 생략), proto_dependency, files_to_modify, implementation_direction, compile_task, test_task — 프로필 `빌드.*`의 `{module}`·`{variant}`(프로필 `빌드.module_variants`)를 채운 전체 명령):
+decisions(+apply), open_questions: [], figma, ui_specs(Step 4-1 — visual todo 없거나 Figma 없으면 생략), visual_cases(Step 4-2 — visual todo 없으면 생략), proto_dependency, files_to_modify, implementation_direction, compile_task, test_task — 프로필 `빌드.*`의 `{module}`·`{variant}`(프로필 `빌드.module_variants`)를 채운 전체 명령):
 ```bash
 ${CLAUDE_PLUGIN_ROOT}/scripts/impl-state.sh init bts {n} < .impl-spec/bts-{n}.draft.json && rm .impl-spec/bts-{n}.draft.json
 ```

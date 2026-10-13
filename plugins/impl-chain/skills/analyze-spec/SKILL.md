@@ -202,6 +202,28 @@ python3 ${CLAUDE_PLUGIN_ROOT}/scripts/merge-ui-results.py .impl-spec/spec-{n}.dr
 **레포 파일(대응표·drawable)은 여기서 쓰지 않는다** — 아직 base 브랜치 위다. start-work Step 2-1이 작업 브랜치에서 `apply`를 반영한다.
 에셋 시험 변환 결과는 `.impl-spec/spec-{n}.figma/assets/`에만 있다.
 
+### 4-2. 화면 확인 케이스 (visual todo가 있을 때 — 생략 불가)
+
+화면에서 **무엇을 어떤 조건으로 볼지**를 승인 전에 표로 확정한다. start-work의 visual-verifier는 이 표를 그대로 실행하고,
+표에 있는데 못 본 케이스는 리포트에 "확인 안 함"으로 남는다 — 즉석에서 고른 케이스만 PASS로 보고되는 일을 막는다.
+
+`visual_cases` (규격: `${CLAUDE_PLUGIN_ROOT}/references/impl-state-file.md`) — 한 행 = 화면 한 장:
+
+| 키 | 내용 |
+|----|------|
+| `scenario` | 화면·상태 (예: "탑승 대기 중 상단 카드"). **같은 scenario끼리 리포트에서 나란히 놓인다** — 조건만 다른 케이스는 글자까지 같은 scenario를 쓴다 |
+| `condition` | 그 화면을 가르는 조건 (예: "AV-D2D", "일반 D2D") |
+| `kind` | `target`(이번에 바뀌는 조건) / `regression`(바뀌면 안 되는 조건) |
+| `expect` | 화면에서 보여야 하는 것 — acceptance의 문구·요소 그대로 |
+
+만드는 법:
+- visual todo마다 acceptance의 **조건 × 상태**를 펼친다. 상태가 여럿이면(예: 탑승대기·탑승중) 상태마다 scenario를 만든다. `target`이 하나도 없는 visual todo는 상태 파일이 거부한다.
+- **회귀 케이스는 계획 검증의 "영향 범위(AS-IS 보존 대상)" 표에서 뽑는다** — 같은 컴포저블·분기를 지나는 다른 타입·상태마다 `regression` 한 행. 기본값·미지정 값도 한 행.
+- `verify: manual` todo라도 화면으로 볼 수 있으면 케이스를 단다 (예: 상태 전환 시 시트가 뜨는지) — 화면 확인이 되면 수동 확인이 줄어든다.
+- 화면에 들어가는 길이 막혀 있거나(랜딩 분기 없음 등) mock으로 못 만드는 조건은 케이스로 넣되, 그 사실을 open question으로 올린다 (우회 진입 허용 / 범위에서 제외).
+
+확인 루프(Step 7)에서 todo·acceptance가 바뀌면 케이스도 같이 고친다. 리포트 "검증 계획"에 표 전체를 싣는다.
+
 ### 5. proto 의존성 게이트
 
 프로필 `서버 계약.mode`가 `none`이면 `proto_dependency = {required:false, status:"n/a"}`로 두고 이 단계를 건너뛴다.
@@ -254,7 +276,7 @@ base는 Step 0에서 이미 확정됐다 — 여기서 다시 판단하지 않�
 ### 8. 상태 파일 기록 (승인 직후 — 생략 불가)
 
 draft를 최종 내용으로 갱신한 뒤 (규격 필드: issue_*, spec_url, milestone, base_branch, branch, size,
-research_files, todo_items, decisions(+apply), open_questions: [], figma, ui_specs(Step 4-1 — visual todo 없거나 Figma 없으면 생략), proto_dependency, files_to_modify,
+research_files, todo_items, decisions(+apply), open_questions: [], figma, ui_specs(Step 4-1 — visual todo 없거나 Figma 없으면 생략), visual_cases(Step 4-2 — visual todo 없으면 생략), proto_dependency, files_to_modify,
 implementation_direction, compile_task, test_task — 프로필 `빌드.compile`/`빌드.test`의 `{module}`·`{variant}`(프로필 `빌드.module_variants`)를 채운 **실행할 전체 명령**):
 ```bash
 ${CLAUDE_PLUGIN_ROOT}/scripts/impl-state.sh init spec {n} < .impl-spec/spec-{n}.draft.json && rm .impl-spec/spec-{n}.draft.json

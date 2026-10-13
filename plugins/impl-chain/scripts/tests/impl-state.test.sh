@@ -39,6 +39,9 @@ cat > "$T/base.json" <<EOF
     {"id": "S1", "node_id": "1:1", "group": "g", "case": "c1"},
     {"id": "S2", "node_id": "1:2", "group": "g", "case": "c2"}]},
   "ui_specs": [{"group": "g", "screens": ["S1", "S2"], "file": "$D/figma/ui-spec/S1-S2.md"}],
+  "visual_cases": [
+    {"id": "V1", "todo_id": "T1", "scenario": "목록 화면", "condition": "PREMIUM", "kind": "target", "expect": "뱃지 있음"},
+    {"id": "V2", "todo_id": "T1", "scenario": "목록 화면", "condition": "STANDARD", "kind": "regression", "expect": "뱃지 없음"}],
   "proto_dependency": {"required": false, "status": "n/a"},
   "files_to_modify": [], "implementation_direction": "x", "compile_task": null, "test_task": null,
   "tasks": [], "previous_branch": null
@@ -65,6 +68,8 @@ expect_init "apply 없는 decision" 0 '.decisions = [{question:"q", answer:"a", 
 expect_init "map_row replace" 0 '.decisions[0].apply[0] += {op:"replace", expect:"CtaButton 또는 CommonButton"}'
 expect_init "token_row replace" 0 '.decisions[1].apply[2] += {op:"replace", expect:"Semantic.Text.Caption"}'
 expect_init "merge-ui-results 산출 필드 (ui_results·ui_spec_also·source)" 0 ".ui_results = [{file:\"$D/figma/ui-spec/S1-S2.md\", result_path:\"$D/figma/ui-spec/S1-S2.result.json\"}] | .decisions[0] += {key:\"component:x\", ui_spec:\"$D/figma/ui-spec/S1-S2.md\", ui_spec_also:[], source:\"start-work\"}"
+expect_init "visual todo 없으면 visual_cases 불필요" 0 '.todo_items |= map(.verify = "unit") | del(.ui_specs) | del(.visual_cases)'
+expect_init "manual todo에 단 visual_cases" 0 '.todo_items[1].verify = "manual" | .visual_cases += [{id:"V3", todo_id:"T2", scenario:"s", condition:"c", kind:"target", expect:"e"}]'
 expect_init "proto temp-local" 0 '.proto_dependency = {required:true, status:"temp-local", note:"example-proto#1 원문 임시 반영"}'
 
 echo "init — 실패"
@@ -93,6 +98,13 @@ expect_init "asset source가 .. 로 탈출" 1 '.decisions[1].apply[0].source = "
 expect_init "apply가 배열 아님" 1 '.decisions[0].apply = "x"' "배열"
 expect_init "apply 항목이 객체 아님" 1 '.decisions[0].apply = ["x"]' "객체"
 expect_init "타입 오류는 exit 1" 1 '.decisions[1].apply[0].target = 5' "입력 형식 오류"
+expect_init "visual todo인데 visual_cases 없음" 1 'del(.visual_cases)' "visual todo T1에 target 케이스 없음"
+expect_init "visual todo에 회귀 케이스만 있음" 1 '.visual_cases |= map(.kind = "regression")' "visual todo T1에 target 케이스 없음"
+expect_init "visual_cases todo_id가 todo에 없음" 1 '.visual_cases[1].todo_id = "T9"' "T9"
+expect_init "visual_cases kind 오류" 1 '.visual_cases[1].kind = "extra"' "target|regression"
+expect_init "visual_cases 필드 누락" 1 'del(.visual_cases[1].expect)' "id/todo_id/scenario/condition/expect"
+expect_init "visual_cases id 중복" 1 '.visual_cases[1].id = "V1"' "id 중복: V1"
+expect_init "visual_cases가 배열 아님" 1 '.visual_cases = "x"' "visual_cases는 배열"
 expect_init "기존 규칙 유지 — open_questions 남음" 1 '.open_questions = ["q"]' "open_questions"
 
 [ $FAIL = 0 ] && echo "ALL PASS" || { echo "FAILED"; exit 1; }
