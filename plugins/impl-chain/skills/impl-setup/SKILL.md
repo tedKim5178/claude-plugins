@@ -30,16 +30,16 @@ invocable: true
 
 ## 실행 단계
 
-### 0-0. 전제 확인 (GitHub + Android 레포 기준)
+### 0-0. 전제 확인 (GitHub 레포 기준 — 기기 확인은 Android 공용 어댑터)
 
 ```bash
 for t in git gh jq python3; do command -v $t > /dev/null || echo "없음: $t"; done
 gh auth status 2>&1 | head -5                      # 로그인·scope (read:project는 BTS 상태 필터를 쓸 때만)
-${CLAUDE_PLUGIN_ROOT}/scripts/android-device.sh adb               # 화면 확인용 adb (없으면 화면 확인.mode 후보에서 adb·adb-mock 제외)
+${CLAUDE_PLUGIN_ROOT}/scripts/android-device.sh check             # 공용 기기 어댑터(Android)의 도구. 레포 전용 기기 어댑터가 있으면 그 스크립트의 check로 대신한다. 실패하면 화면 확인.mode 후보에서 device·device-mock 제외
 git remote -v                                       # 원격이 둘 이상이면 Step 3에서 PR용 원격(git.remote)을 묻는다
 git check-ignore -q .impl-spec/x && echo ".impl-spec ignored" || echo ".impl-spec NOT ignored"
 ```
-필수 도구(git·gh·jq·python3)가 없거나 gh가 로그인 안 돼 있으면 설치·로그인 방법을 안내하고 **중단**. adb가 없으면 진행하되 보고에 남긴다.
+필수 도구(git·gh·jq·python3)가 없거나 gh가 로그인 안 돼 있으면 설치·로그인 방법을 안내하고 **중단**. 기기 도구가 없으면 진행하되 보고에 남긴다.
 
 ### 0. 기존 프로필
 
@@ -73,7 +73,8 @@ AskUserQuestion으로 묻는다 (한 번에 최대 4개, 후보를 선택지로,
 - **BTS 필터**: 제외 라벨·프로젝트 상태 (gh `read:project` scope가 없으면 상태 필터를 쓰면 목록 조회가 실패한다는 점을 함께).
 - **기획서 위치**: 링크 레포 후보가 둘 이상이거나, 기획서가 앱 이슈 자체에 있는 경우.
 - **새 에셋 위치** (`asset_target`): drawable·asset 폴더가 둘 이상 모듈에 있으면 어느 모듈에 둘지 (분포를 보여주고)
-- **화면 확인** (`화면 확인.mode`): `adb-mock`(서버 응답 mock 스킬이 있을 때 — 레포·`~/.claude/skills/`에서 찾은 후보를 보여주고) / `adb`(기기로만, 서버 상태가 필요한 케이스는 수동) / `none`. adb가 없으면 `none`만.
+- **화면 확인** (`화면 확인.mode`): `device-mock`(서버 응답 mock 스킬이 있을 때 — 레포·`~/.claude/skills/`에서 찾은 후보를 보여주고) / `device`(기기로만, 서버 상태가 필요한 케이스는 수동) / `none`. 기기 어댑터의 `check`가 실패하면 `none`만.
+  기기 어댑터(`화면 확인.device_adapter`): Android 레포면 키를 생략한다(기본 `builtin:android-device`). 그 외 플랫폼은 레포에 계약(`impl-profile-spec.md` "기기 어댑터")을 지키는 스크립트가 있을 때만 그 경로를 적고, 없으면 `none`으로 두고 보고에 "기기 어댑터 필요"를 남긴다 — 어댑터를 여기서 지어 쓰지 않는다.
 - **테스트 코드 보존** (`빌드.test_retention`): `discard`(기본 — 작업 중 추가한 테스트를 통과 확인 뒤 지우고 커밋하지 않음) / `keep`(테스트도 커밋). 레포에 기존 테스트가 많고 CI가 돌리면 `keep`을 첫 선택지로.
 - **PR 원격** (`git.remote`): `git remote`가 둘 이상일 때만 (포크 구조면 PR을 올릴 쪽). 하나면 묻지 않고 키를 생략한다 (기본 origin).
 

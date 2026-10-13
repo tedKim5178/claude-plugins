@@ -32,7 +32,7 @@ description: impl-setup이 스폰하는 읽기 전용 레포 분석 에이전트
      (Gradle 예: `./gradlew -m ":${m}:compile{variant}Kotlin"` dry-run — 성공/실패로 태스크 존재 확인. `tasks --all`은 AGP 버전에 따라 compile 태스크를 안 보여줄 수 있다.
      **틀린 variant가 실패하는 것도** 한 번 확인한다. zsh에서는 `$m:t`가 변수 수식어로 먹으니 `${m}`)
    - 이슈 링크 정규식: 실제 최근 이슈 본문·댓글에 돌려서 잡히는 것/안 잡혀야 하는 것(앱 레포 자신의 링크 등)을 확인.
-   - 도구: `adb`, `gh auth status`(scope — BTS 프로젝트 상태 필터는 `read:project` 필요) 등. PATH에 없으면 실제 위치와 함께 보고.
+   - 도구: 기기 도구(`android-device.sh check` — Android면 adb), `gh auth status`(scope — BTS 프로젝트 상태 필터는 `read:project` 필요) 등. PATH에 없으면 실제 위치와 함께 보고.
 4. **토큰**: 시맨틱 층 토큰 정의 파일(색·타이포를 용도 이름으로 선언한 파일)을 찾아 `source`로 제안한다. 팔레트 파일(원색 단계값)은 넣지 않는다 — 값이 겹치는 토큰이 많아져 질문이 넘친다.
    코드에 Figma 변수 이름이 결정적으로 연결돼 있으면(예: `val Body: Color // text/body` 주석, Figma 이름에서 기계적으로 유도되는 명명 규칙) 그 근거로 **대응표 시드 행 후보**를 만들고
    근거 파일·패턴·커버리지(연결된 토큰 수/전체)를 적는다. 연결이 없으면 **빈 대응표**를 제안한다 (체인이 쓰면서 쌓는다). 토큰 정의 파일이 없으면 `none`.
@@ -51,7 +51,7 @@ description: impl-setup이 스폰하는 읽기 전용 레포 분석 에이전트
 | 코드 | 언어별 확장자(glob 여러 개 가능), 화면→데이터 레이어 경로(실제 한 기능을 끝까지 따라가서), 네비게이션 정의, 앱·서비스 변형(flavor·white label) |
 | 디자인 | 토큰 파일과 Figma 연결 근거(원칙 4), 공용 컴포넌트, 에셋 위치·조회 명령, Figma `clientFrameworks`/`clientLanguages` |
 | 문구 | 리소스 시스템(strings.xml / Localizable / i18n json 등), 기본 로케일 언어, 관리 도구 흔적, 임시 파일 관례(git log), 하드코딩 현황 |
-| 화면 확인 | adb·AVD 존재(`${CLAUDE_PLUGIN_ROOT}/scripts/android-device.sh adb`, `emulator -list-avds`), 서버 응답 mock 스킬/엔진 (`.claude/skills/*`, `~/.claude/skills/*`) → `adb-mock` / `adb` / `none` 후보 |
+| 화면 확인 | 기기 어댑터 — Android면 공용(`${CLAUDE_PLUGIN_ROOT}/scripts/android-device.sh check`, `emulator -list-avds`), 그 외 플랫폼이면 레포에 계약을 지키는 기기 어댑터 스크립트가 있는지(`.claude/impl-chain/adapters/*`). 서버 응답 mock 스킬/엔진 (`.claude/skills/*`, `~/.claude/skills/*`) → `device-mock` / `device` / `none` 후보 + `device_adapter` 값(Android면 생략) |
 
 ## 출력 (`output_file`에 쓰고 같은 내용 반환)
 
@@ -78,7 +78,7 @@ description: impl-setup이 스폰하는 읽기 전용 레포 분석 에이전트
 - 규칙 / 금지 / 확인(명령·등급) — 관찰만으로 쓴 부분과 정책 질문에 달린 부분을 구분
 
 ## 환경 이슈
-- 예: adb가 PATH에 없음(실제 위치), gh 토큰 scope 부족
+- 예: 기기 도구(adb 등)가 PATH에 없음(실제 위치), gh 토큰 scope 부족
 ```
 
 ## 제약

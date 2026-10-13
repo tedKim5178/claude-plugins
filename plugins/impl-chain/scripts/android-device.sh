@@ -1,16 +1,22 @@
 #!/bin/bash
-# visual-verifier용 Android 기기 확보·정리.
+# 기기 어댑터 (Android) — visual-verifier가 쓰는 기기 확보·조작·정리. 프로필 `화면 확인.device_adapter`의 기본값 `builtin:android-device`.
+# 계약: impl-chain references/impl-profile-spec.md "기기 어댑터". 다른 플랫폼은 같은 호출·출력의 스크립트를 레포에 두고 그 경로를 적는다.
 #
 # Usage:
-#   android-device.sh adb              → adb 경로 출력
+#   android-device.sh check            → 기기 도구(adb)를 쓸 수 있으면 그 경로 출력 (`adb`도 같은 동작 — mock 스킬이 adb를 직접 부를 때 쓴다)
 #       찾는 순서: PATH → $ANDROID_HOME → $ANDROID_SDK_ROOT → ~/Library/Android/sdk → ~/Android/Sdk
 #   android-device.sh ensure [avd]     → 쓸 기기 serial 출력 (연결된 기기 중 state=device인 첫 번째)
 #       없으면 AVD를 헤드리스로 부팅한다: 인자 → 프로필 `화면 확인.avd` → `emulator -list-avds` 첫 번째.
 #       부팅했으면 stderr에 `BOOTED {serial}` — 호출자는 끝날 때 cleanup으로 정리한다.
 #       부팅 대기 시간: $ANDROID_DEVICE_BOOT_TIMEOUT초 (기본 180)
 #   android-device.sh cleanup <serial> → ensure가 부팅한 에뮬레이터 종료 (emulator-* 만 — 실기기는 건드리지 않는다)
+#   android-device.sh ui <serial>                      → 화면 요소 트리(uiautomator XML — text·bounds) 출력
+#   android-device.sh tap <serial> <x> <y>             → 탭
+#   android-device.sh swipe <serial> <x1> <y1> <x2> <y2> [ms]  → 스와이프·스크롤 (기본 300ms)
+#   android-device.sh key <serial> back|home           → 시스템 키
+#   android-device.sh screenshot <serial> <out.png>    → 스크린샷 저장
 #
-# 종료 코드: 0 성공 / 3 adb(SDK) 없음 / 4 연결 기기도 쓸 AVD도 없음 / 5 부팅 시간 초과 / 1 사용법 오류
+# 종료 코드: 0 성공 / 3 adb(SDK) 없음 / 4 연결 기기도 쓸 AVD도 없음 / 5 부팅 시간 초과 / 1 사용법 오류·조작 실패
 
 set -uo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"
@@ -31,8 +37,40 @@ EMULATOR="$SDK/emulator/emulator"
 first_device() { "$ADB" devices | awk 'NR>1 && $2=="device" {print $1; exit}'; }
 
 case "${1:-}" in
-  adb)
+  check|adb)
     echo "$ADB"
+    ;;
+
+  ui)
+    SERIAL="${2:?usage: android-device.sh ui <serial>}"
+    "$ADB" -s "$SERIAL" shell uiautomator dump /sdcard/impl-chain-ui.xml > /dev/null 2>&1 \
+      || { echo "화면 요소 트리를 읽지 못했습니다 (uiautomator dump 실패)" >&2; exit 1; }
+    "$ADB" -s "$SERIAL" exec-out cat /sdcard/impl-chain-ui.xml
+    ;;
+
+  tap)
+    [ $# -eq 4 ] || { echo "usage: android-device.sh tap <serial> <x> <y>" >&2; exit 1; }
+    "$ADB" -s "$2" shell input tap "$3" "$4"
+    ;;
+
+  swipe)
+    [ $# -ge 6 ] || { echo "usage: android-device.sh swipe <serial> <x1> <y1> <x2> <y2> [ms]" >&2; exit 1; }
+    "$ADB" -s "$2" shell input swipe "$3" "$4" "$5" "$6" "${7:-300}"
+    ;;
+
+  key)
+    [ $# -eq 3 ] || { echo "usage: android-device.sh key <serial> back|home" >&2; exit 1; }
+    case "$3" in
+      back) "$ADB" -s "$2" shell input keyevent KEYCODE_BACK ;;
+      home) "$ADB" -s "$2" shell input keyevent KEYCODE_HOME ;;
+      *) echo "지원하지 않는 키: $3 (back | home)" >&2; exit 1 ;;
+    esac
+    ;;
+
+  screenshot)
+    [ $# -eq 3 ] || { echo "usage: android-device.sh screenshot <serial> <out.png>" >&2; exit 1; }
+    "$ADB" -s "$2" exec-out screencap -p > "$3" && [ -s "$3" ] \
+      || { echo "스크린샷을 저장하지 못했습니다: $3" >&2; exit 1; }
     ;;
 
   ensure)
@@ -76,7 +114,7 @@ case "${1:-}" in
     ;;
 
   *)
-    echo "usage: android-device.sh adb | ensure [avd] | cleanup <serial>" >&2
+    echo "usage: android-device.sh check | ensure [avd] | cleanup <serial> | ui <serial> | tap <serial> <x> <y> | swipe <serial> <x1> <y1> <x2> <y2> [ms] | key <serial> back|home | screenshot <serial> <out.png>" >&2
     exit 1
     ;;
 esac

@@ -187,7 +187,7 @@ Step 4의 테스트가 전부 통과해야 한다. 기존 테스트가 깨지면
 ### 8. 화면 확인 (visual todo가 있을 때)
 프로필 `화면 확인.mode`가 `none`이면 스폰하지 않고 `verification.visual = "skipped — 화면 확인 수단 없음 (프로필)"`, visual todo의 note는 `visual: skipped — 프로필 none`.
 그 외에는 `visual-verifier` 에이전트를 **반드시** 스폰한다: `state_file`, `output_dir: .impl-spec/{type}-{n}.visual/`.
-- **기기가 있는지 메인이 직접 판단하지 않는다** (`adb devices`를 쳐 보고 "기기 없음"으로 건너뛰지 않는다). adb는 PATH에 없을 수 있고, 기기가 없으면 에이전트가 AVD를 부팅한다 — `SKIPPED`는 에이전트가 돌려줄 때만 기록한다.
+- **기기가 있는지 메인이 직접 판단하지 않는다** (`adb devices` 같은 플랫폼 명령을 쳐 보고 "기기 없음"으로 건너뛰지 않는다). 기기 도구는 PATH에 없을 수 있고, 기기가 없으면 에이전트가 기기 어댑터(프로필 `화면 확인.device_adapter`)로 에뮬레이터·시뮬레이터를 부팅한다 — `SKIPPED`는 에이전트가 돌려줄 때만 기록한다.
 - 에이전트는 상태 파일 `visual_cases`(analyze에서 승인된 확인 계획)를 실행하고 `{output_dir}/report.html`(조건별 스크린샷 비교)을 만든다.
   돌아오면 메인이 **스크린샷을 직접 열어**(대상 케이스 전부 + 회귀 케이스 하나 이상 Read) 에이전트의 판정과 맞는지 본 뒤 기록한다:
   `echo '{"verification":{"visual_report":".impl-spec/{type}-{n}.visual/report.html"}}' | $S merge {type} {n}`

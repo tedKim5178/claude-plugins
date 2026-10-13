@@ -4,9 +4,10 @@
 # Usage:
 #   impl-profile.sh get <섹션>.<키>                                    값 출력. 없으면 exit 2
 #   impl-profile.sh check [--for analyze-spec|analyze-bts|start-work]  게이트. 문제는 stderr, 실패 exit 1
-#   impl-profile.sh adapter <이슈.spec_adapter|이슈.bts_adapter>       실행할 어댑터 절대 경로 출력
-#       값 `builtin:gh-spec-issue` / `builtin:gh-bts-issue` → 이 스크립트와 같은 폴더의 공용 어댑터
+#   impl-profile.sh adapter <이슈.spec_adapter|이슈.bts_adapter|화면 확인.device_adapter>   실행할 어댑터 절대 경로 출력
+#       값 `builtin:gh-spec-issue` / `builtin:gh-bts-issue` / `builtin:android-device` → 이 스크립트와 같은 폴더의 공용 어댑터
 #       (예전 값 `.claude/scripts/gh-*.sh`도 builtin으로 본다) / 그 외 → 레포 루트 기준 경로 (레포 전용 어댑터)
+#       `화면 확인.device_adapter`는 키가 없으면 `builtin:android-device`로 본다
 #
 # 프로필 경로: $IMPL_PROFILE (impl-setup 검증용) → 없으면 {repo}/.claude/impl-chain/profile.md
 # 프로필 안의 상대 경로는 레포 루트 기준이다. 이 스크립트는 레포 밖(플러그인)에 있어도 된다.
@@ -17,8 +18,11 @@ PROFILE="${IMPL_PROFILE:-$ROOT/.claude/impl-chain/profile.md}"
 
 HERE="$(cd "$(dirname "$0")" && pwd)"
 
-# 공용 이슈 어댑터 — builtin:{이름} → $HERE/{이름}.sh. 이걸 쓰면 그 어댑터가 읽는 키도 필수가 된다
-BUILTIN_ADAPTERS="gh-spec-issue gh-bts-issue"
+# 공용 어댑터 — builtin:{이름} → $HERE/{이름}.sh. 이슈 어댑터를 쓰면 그 어댑터가 읽는 키도 필수가 된다
+BUILTIN_ADAPTERS="gh-spec-issue gh-bts-issue android-device"
+# 기기 어댑터 키 — 없으면 기본값 (기기 어댑터가 생기기 전에 쓴 프로필이 그대로 돌도록)
+DEVICE_ADAPTER_KEY="화면 확인.device_adapter"
+DEVICE_ADAPTER_DEFAULT="builtin:android-device"
 
 die() { echo "ERROR: $*" >&2; exit 1; }
 
@@ -43,7 +47,11 @@ pget() {
 # $1 = 어댑터 키 → 절대 경로 (stdout). 이름 해석 실패면 return 1, 키 없음이면 return 2
 # 두 번째 줄(stderr 아님)로 builtin 이름을 알려주지 않는다 — builtin_name()을 쓴다
 resolve_adapter() {
-  local v name; v=$(pget "$1") && [ -n "$v" ] || return 2
+  local v name
+  if ! v=$(pget "$1") || [ -z "$v" ]; then
+    [ "$1" = "$DEVICE_ADAPTER_KEY" ] || return 2
+    v=$DEVICE_ADAPTER_DEFAULT
+  fi
   name=$(builtin_name "$v")
   if [ -n "$name" ]; then
     case " $BUILTIN_ADAPTERS " in
@@ -64,7 +72,7 @@ builtin_name() {
 }
 
 cmd_adapter() {
-  [ $# -eq 1 ] || die "usage: impl-profile.sh adapter <이슈.spec_adapter|이슈.bts_adapter>"
+  [ $# -eq 1 ] || die "usage: impl-profile.sh adapter <이슈.spec_adapter|이슈.bts_adapter|화면 확인.device_adapter>"
   [ -f "$PROFILE" ] || die "프로필 없음: $PROFILE"
   local p; p=$(resolve_adapter "$1"); case $? in 0) ;; 2) echo "ERROR: 키 없음: $1" >&2; exit 2 ;; *) exit 1 ;; esac
   [ -x "$p" ] || die "$1 어댑터가 없거나 실행할 수 없음: $p"
@@ -131,7 +139,7 @@ cmd_check() {
   # 에셋 자동 export는 선택. 쓰면 결과를 둘 경로 템플릿도 있어야 한다
   pget "UI 컴포넌트.asset_export" > /dev/null 2>&1 && need "UI 컴포넌트.asset_target"
   oneof "문구.mode" rule hardcode
-  oneof "화면 확인.mode" adb-mock adb none
+  oneof "화면 확인.mode" device-mock device adb-mock adb none   # adb-mock·adb = device-mock·device와 같은 뜻 (Android 전용이던 때의 이름)
   # 선택 키: 작업 중 추가한 테스트 코드를 커밋에 남길지 (없으면 discard)
   local tr; tr=$(pget "빌드.test_retention" 2>/dev/null) && { [ "$tr" = discard ] || [ "$tr" = keep ] || problems+=("빌드.test_retention 값 '$tr' — 허용: discard keep"); }
   # 선택 키: push·PR에 쓰는 원격 이름 (없으면 origin)
@@ -152,12 +160,22 @@ cmd_check() {
   fi
   [ "$(mode "UI 컴포넌트")" = map ]      && needfile "UI 컴포넌트.map"
   [ "$(mode "문구")" = rule ]            && needfile "문구.rule"
-  case "$(mode "화면 확인")" in adb|adb-mock) need "빌드.install" ;; esac
-  if [ "$(mode "화면 확인")" = adb-mock ]; then
+  case "$(mode "화면 확인")" in
+    device|device-mock|adb|adb-mock)
+      need "빌드.install"
+      # 기기 어댑터 — 키가 없으면 기본값. 해석되고 실행 가능해야 한다
+      local dp
+      if dp=$(resolve_adapter "$DEVICE_ADAPTER_KEY" 2>&1); then
+        [ -x "$dp" ] || problems+=("$DEVICE_ADAPTER_KEY 가 가리키는 어댑터가 없거나 실행 불가: $dp")
+      else
+        problems+=("$DEVICE_ADAPTER_KEY: $dp")
+      fi ;;
+  esac
+  if [ "$(mode "화면 확인")" = device-mock ] || [ "$(mode "화면 확인")" = adb-mock ]; then
     # mock 스킬은 레포(.claude/skills) 또는 사용자 스킬 폴더(~/.claude/skills)에 있어야 한다
     local ms; ms=$(pget "화면 확인.mock_skill") && [ -n "$ms" ] \
       && { [ -f "$ROOT/.claude/skills/$ms/SKILL.md" ] || [ -f "$HOME/.claude/skills/$ms/SKILL.md" ] \
-           || problems+=("화면 확인.mock_skill 스킬 없음: $ms (.claude/skills/ 또는 ~/.claude/skills/ — mock 없이 기기로만 볼 거면 mode: adb)"); } \
+           || problems+=("화면 확인.mock_skill 스킬 없음: $ms (.claude/skills/ 또는 ~/.claude/skills/ — mock 없이 기기로만 볼 거면 mode: device)"); } \
       || problems+=("필수 키 없음: 화면 확인.mock_skill")
   fi
 

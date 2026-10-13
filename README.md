@@ -46,7 +46,7 @@ impl-setup                  레포 프로필 생성 (레포마다 처음 한 번
 ## 전제
 
 - **GitHub** 이슈·PR + `gh` CLI 로그인
-- **Android** 프로젝트 (화면 확인은 adb·에뮬레이터, 아이콘 export는 vector drawable)
+- 화면 확인은 **Android**(adb·에뮬레이터)가 기본이다. 다른 플랫폼은 프로필 `화면 확인.device_adapter`에 레포 전용 기기 어댑터를 적어 바꾼다 (없으면 화면 확인 없이 `none`으로 쓸 수 있다)
 - 도구: `git`, `gh`, `jq`, `python3`, `bash` 3.2+
 - Figma 연동: [Figma 공식 플러그인](https://www.figma.com/developers/mcp) (MCP) 로그인
 - (선택) 서버 계약을 proto 레포로 관리하면 proto 의존성 확인
@@ -84,7 +84,7 @@ impl-setup                  레포 프로필 생성 (레포마다 처음 한 번
 | 빌드 | compile/test 명령 템플릿, 모듈별 variant |
 | 디자인 토큰 / UI 컴포넌트 | Figma ↔ 코드 대응표, 아이콘 export 명령 |
 | 문구 | 새 문구를 어디에 어떤 키로 넣는지 규칙 |
-| 화면 확인 | `adb-mock`(mock 스킬로 서버 응답 조작) / `adb` / `none` |
+| 화면 확인 | `device-mock`(mock 스킬로 서버 응답 조작) / `device` / `none`, 기기 어댑터(기본 Android) |
 | git | 브랜치·커밋 형식, PR 원격 |
 
 ## 개발

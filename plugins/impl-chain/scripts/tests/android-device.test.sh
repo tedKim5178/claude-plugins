@@ -24,7 +24,10 @@ case "\$*" in
   devices) echo "List of devices attached"; cat "\$S" 2>/dev/null ;;
   *"getprop sys.boot_completed"*) echo 1 ;;
   *"emu kill"*) echo "\$*" >> "$T/killed"; : > "\$S" ;;
-  *) : ;;
+  *"uiautomator dump"*) [ -f "$T/ui-broken" ] && exit 1; echo "\$*" >> "$T/calls" ;;
+  *"exec-out cat"*) echo '<hierarchy><node text="확인" bounds="[0,0][10,10]"/></hierarchy>' ;;
+  *"exec-out screencap"*) [ -f "$T/shot-broken" ] || printf 'PNG' ;;
+  *) echo "\$*" >> "$T/calls" ;;
 esac
 EOF
 cat > "$SDK/emulator/emulator" <<EOF
@@ -43,6 +46,9 @@ echo "adb 경로"
 expect "ANDROID_HOME에서 adb 찾음" 0 run "$D" adb
 [ "$out" = "$SDK/platform-tools/adb" ] && ok "경로 출력" || bad "out=$out"
 expect "SDK가 없으면 exit 3" 3 env -i HOME="$T/home" PATH="$CLEAN_PATH" "$D" adb
+expect "check — 도구 있음" 0 run "$D" check
+[ "$out" = "$SDK/platform-tools/adb" ] && ok "check도 경로 출력" || bad "out=$out"
+expect "check — SDK가 없으면 exit 3" 3 env -i HOME="$T/home" PATH="$CLEAN_PATH" "$D" check
 
 echo "ensure — 연결된 기기"
 printf 'R5CT\tdevice\nX\toffline\n' > "$T/state"
@@ -70,6 +76,25 @@ expect "부팅한 에뮬레이터 종료" 0 run "$D" cleanup emulator-5554
 grep -q "emu kill" "$T/killed" && ok "emu kill 호출" || bad "kill 안 함"
 expect "에뮬레이터가 아닌 serial은 종료하지 않음" 0 run "$D" cleanup R5CT
 [ "$(grep -c R5CT "$T/killed")" = 0 ] && ok "실기기 보호" || bad "실기기 kill"
+
+echo "기기 조작"
+expect "ui — 요소 트리 출력" 0 run "$D" ui R5CT
+grep -q 'text="확인"' <<< "$out" && ok "텍스트 포함" || bad "out=$out"
+touch "$T/ui-broken"
+expect "ui — dump 실패면 exit 1" 1 run "$D" ui R5CT
+rm "$T/ui-broken"
+expect "tap" 0 run "$D" tap R5CT 10 20
+grep -q -- "-s R5CT shell input tap 10 20" "$T/calls" && ok "그 기기에 tap 전달" || bad "calls=$(cat "$T/calls")"
+expect "tap — 인자 부족" 1 run "$D" tap R5CT 10
+expect "swipe" 0 run "$D" swipe R5CT 1 2 3 4
+grep -q -- "-s R5CT shell input swipe 1 2 3 4 300" "$T/calls" && ok "기본 300ms" || bad "calls=$(cat "$T/calls")"
+expect "key back" 0 run "$D" key R5CT back
+grep -q -- "keyevent KEYCODE_BACK" "$T/calls" && ok "BACK 전달" || bad "calls=$(cat "$T/calls")"
+expect "key — 모르는 키" 1 run "$D" key R5CT menu
+expect "screenshot" 0 run "$D" screenshot R5CT "$T/shot.png"
+[ -s "$T/shot.png" ] && ok "파일 저장" || bad "스크린샷 없음"
+touch "$T/shot-broken"
+expect "screenshot — 빈 결과면 exit 1" 1 run "$D" screenshot R5CT "$T/shot2.png"
 
 echo
 [ "$FAIL" = 0 ] && echo "ALL PASS" || { echo "FAILED"; exit 1; }

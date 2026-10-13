@@ -98,6 +98,31 @@ F=$(variant no-asset <<< '/^- asset_export:/d; /^- asset_target:/d')
 expect_exit "asset 키 둘 다 없음 (선택 키)" 0 env IMPL_PROFILE="$F" $P check
 F=$(variant adb-only <<< 's/^- mode: adb-mock$/- mode: adb/; /^- mock_skill: /d')
 expect_exit "화면 확인 adb (mock 없이)" 0 env IMPL_PROFILE="$F" $P check
+F=$(variant device-mock <<< 's/^- mode: adb-mock$/- mode: device-mock/')
+expect_exit "화면 확인 device-mock (adb-mock과 같은 뜻)" 0 env IMPL_PROFILE="$F" $P check
+F=$(variant device-only <<< 's/^- mode: adb-mock$/- mode: device/; /^- mock_skill: /d')
+expect_exit "화면 확인 device (mock 없이)" 0 env IMPL_PROFILE="$F" $P check
+F=$(variant device-mock-no-skill <<< 's/^- mode: adb-mock$/- mode: device-mock/; /^- mock_skill: /d')
+expect_exit "device-mock도 mock_skill 필수" 1 env IMPL_PROFILE="$F" $P check
+
+echo "기기 어댑터"
+[ "$($P adapter "화면 확인.device_adapter")" = "$SCRIPTS/android-device.sh" ] && ok "키 없으면 builtin:android-device" || bad "기본 기기 어댑터: $($P adapter "화면 확인.device_adapter" 2>&1)"
+F=$(variant dev-builtin <<< 's/^- mock_skill: .*/&\n- device_adapter: builtin:android-device/')
+[ "$(env IMPL_PROFILE="$F" $P adapter "화면 확인.device_adapter")" = "$SCRIPTS/android-device.sh" ] && ok "builtin:android-device 해석" || bad "builtin:android-device 해석"
+expect_exit "builtin 기기 어댑터 check 통과" 0 env IMPL_PROFILE="$F" $P check
+printf '#!/bin/bash\necho custom\n' > .claude/impl-chain/adapters/ios-device.sh && chmod +x .claude/impl-chain/adapters/ios-device.sh
+F=$(variant dev-custom <<< 's/^- mock_skill: .*/&\n- device_adapter: .claude\/impl-chain\/adapters\/ios-device.sh/')
+[ "$(env IMPL_PROFILE="$F" $P adapter "화면 확인.device_adapter")" = "$(pwd -P)/.claude/impl-chain/adapters/ios-device.sh" ] && ok "레포 전용 기기 어댑터 경로" || bad "레포 전용 기기 어댑터 경로: $(env IMPL_PROFILE="$F" $P adapter "화면 확인.device_adapter" 2>&1) vs $(pwd -P)"
+expect_exit "레포 전용 기기 어댑터 check 통과" 0 env IMPL_PROFILE="$F" $P check
+F=$(variant dev-missing <<< 's/^- mock_skill: .*/&\n- device_adapter: .claude\/impl-chain\/adapters\/nope.sh/')
+expect_exit "기기 어댑터 파일 없으면 실패" 1 env IMPL_PROFILE="$F" $P check
+grep -q "device_adapter" "$T/err" && ok "기기 어댑터 오류 보고" || bad "기기 어댑터 오류 보고: $(cat "$T/err")"
+F=$(variant dev-bad-builtin <<< 's/^- mock_skill: .*/&\n- device_adapter: builtin:nope/')
+expect_exit "알 수 없는 builtin 기기 어댑터 실패" 1 env IMPL_PROFILE="$F" $P check
+F=$(variant dev-missing-none <<< 's/^- mode: adb-mock$/- mode: none/; s/^- mock_skill: .*/- device_adapter: .claude\/impl-chain\/adapters\/nope.sh/; /^- install: /d')
+expect_exit "mode none이면 기기 어댑터를 검사하지 않음" 0 env IMPL_PROFILE="$F" $P check
+
+echo "check — 그 외 변형"
 F=$(variant adb-no-install <<< 's/^- mode: adb-mock$/- mode: adb/; /^- mock_skill: /d; /^- install: /d')
 expect_exit "adb 모드도 install 필수" 1 env IMPL_PROFILE="$F" $P check
 mkdir -p "$T/home/.claude/skills/user-mock" && echo x > "$T/home/.claude/skills/user-mock/SKILL.md"

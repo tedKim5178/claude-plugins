@@ -1,6 +1,6 @@
 {
   "name": "impl-chain",
-  "version": "1.2.1",
+  "version": "1.3.0",
   "description": "GitHub 이슈(기획서·BTS)에서 분석 → 구현 → PR까지 이어지는 Claude Code 작업 체인. GitHub + Android(Kotlin) 프로젝트용.",
   "author": { "name": "tedKim5178" },
   "repository": "https://github.com/tedKim5178/claude-plugins",
