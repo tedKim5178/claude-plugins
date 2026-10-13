@@ -18,8 +18,8 @@ GitHub 이슈를 쓰면 이슈 어댑터는 공용 스크립트를 그대로 쓰
 ## 전제
 
 - 이슈·PR은 **GitHub + `gh` CLI**를 쓴다 (create-pr, 리뷰어의 원문 조회). 이슈 트래커가 다르면 spec/bts 어댑터가 계약 형식으로 변환하고, create-pr은 수정이 필요하다.
-- 도구: `git`, `gh`(로그인), `jq`, `python3`, `bash`(3.2+ — macOS 기본 셸 가능). 화면 확인(`device`·`device-mock`)은 기기 어댑터가 쓰는 도구 — 공용 어댑터 `builtin:android-device`면 Android SDK(adb, emulator).
-- 공용 기기 어댑터와 에셋 export 예시는 **Android** 기준이다 (`builtin:android-device`, `asset_export`의 vector drawable). 다른 플랫폼은 레포 전용 기기 어댑터(`화면 확인.device_adapter`)와 자기 `asset_export` 명령을 적는다.
+- 도구: `git`, `gh`(로그인), `jq`, `python3`, `bash`(3.2+ — macOS 기본 셸 가능). 화면 확인(`device`·`device-mock`)은 기기 어댑터가 쓰는 도구 — `builtin:android-device`면 Android SDK(adb, emulator), `builtin:ios-device`면 Xcode(`xcrun simctl`) + [AXe](https://github.com/cameroncooke/AXe)(`brew install cameroncooke/axe/axe`), `builtin:ios-real-device`면 libimobiledevice(`brew install libimobiledevice`) + 기기에서 도는 [WebDriverAgent](https://github.com/appium/WebDriverAgent).
+- 공용 기기 어댑터는 Android(`builtin:android-device` — 기본값), iOS 시뮬레이터(`builtin:ios-device`), iOS 실기기(`builtin:ios-real-device`)가 있다. 그 외 플랫폼은 레포 전용 기기 어댑터를 `화면 확인.device_adapter`에 적는다. 에셋 export 예시는 Android 기준이다 (`asset_export`의 vector drawable) — 다른 플랫폼은 자기 명령을 적는다.
 
 ## 형식
 
@@ -84,9 +84,13 @@ exit 0이면 통과. 아니면 stderr의 문제 목록을 그대로 보여주고
 | 문구 | `mode` | ✅ | `rule` \| `hardcode` |
 | | `rule` | mode=rule | 문구 규칙 문서 (어디에, 어떤 키로, 리뷰 시 무엇을 검사하는지) |
 | 화면 확인 | `mode` | ✅ | `device-mock`(기기 + 서버 응답 mock 스킬) \| `device`(기기만 — 서버 상태가 필요한 케이스는 수동 확인) \| `none`. `adb-mock`·`adb`는 `device-mock`·`device`와 같은 뜻으로 받는다 |
-| | `device_adapter` | | 기기 어댑터 — 기기 확보·화면 읽기·탭·스크린샷을 하는 스크립트. `builtin:android-device`(체인 공용 — adb·에뮬레이터) 또는 레포 전용 어댑터의 레포 루트 기준 경로. **없으면 `builtin:android-device`** |
+| | `device_adapter` | | 기기 어댑터 — 기기 확보·화면 읽기·탭·스크린샷을 하는 스크립트. `builtin:android-device`(체인 공용 — adb·에뮬레이터) / `builtin:ios-device`(체인 공용 — iOS 시뮬레이터, simctl + AXe) / `builtin:ios-real-device`(체인 공용 — USB로 연결한 iOS 실기기, WebDriverAgent) 또는 레포 전용 어댑터의 레포 루트 기준 경로. **없으면 `builtin:android-device`** |
 | | `mock_skill` | mode=device-mock | 서버 응답 mock 스킬 이름 — 레포 `.claude/skills/` 또는 `~/.claude/skills/`에 있어야 한다 |
 | | `avd` | | (`builtin:android-device` 전용) 연결 기기가 없을 때 헤드리스로 부팅할 AVD 이름 (없으면 `emulator -list-avds` 첫 번째). 레포 전용 기기 어댑터는 자기 키를 정해 `impl-profile.sh get`으로 읽는다 |
+| | `simulator` | | (`builtin:ios-device` 전용) 부팅된 시뮬레이터가 없을 때 부팅할 시뮬레이터 이름 또는 UDID (없으면 최신 iOS 런타임의 첫 iPhone) |
+| | `device_udid` | | (`builtin:ios-real-device` 전용) 쓸 기기 UDID (없으면 USB로 연결된 첫 기기) |
+| | `wda_port` | | (`builtin:ios-real-device` 전용) WebDriverAgent로 포워드할 Mac 쪽 포트 (기본 8100) |
+| | `wda_start` | | (`builtin:ios-real-device` 전용) WebDriverAgent가 안 떠 있을 때 띄우는 명령 — `{udid}`가 기기 UDID로 바뀐다. 예: `xcodebuild -project {WDA 경로}/WebDriverAgent.xcodeproj -scheme WebDriverAgentRunner -destination id={udid} -allowProvisioningUpdates test`. 없으면 WDA를 직접 띄워 둔 상태에서만 동작한다 |
 
 ## 모드별 동작
 
@@ -150,14 +154,20 @@ visual-verifier는 기기를 이 어댑터로만 다룬다. 경로는 `impl-prof
 | `{device_adapter} ensure` | stdout = 쓸 기기 `{id}`. 연결된 기기가 없으면 에뮬레이터·시뮬레이터를 부팅하고 stderr에 `BOOTED {id}` 한 줄. exit 3 도구 없음 / 4 기기 없음 / 5 부팅 시간 초과 (stderr 첫 줄 = 사유) | ✅ |
 | `{device_adapter} cleanup {id}` | `ensure`가 부팅한 기기를 종료. 원래 연결돼 있던 기기는 건드리지 않는다 | ✅ |
 | `{device_adapter} ui {id}` | stdout = 화면 요소 트리. 요소마다 **보이는 텍스트와 화면 좌표**가 있어야 한다 (형식은 자유 — XML·JSON 등). 못 읽으면 exit 1 | ✅ |
-| `{device_adapter} tap {id} {x} {y}` | 그 좌표를 탭 (`ui`·`screenshot`과 같은 좌표계) | ✅ |
+| `{device_adapter} tap {id} {x} {y}` | 그 좌표를 탭. **좌표계는 `ui` 출력과 같다** — 스크린샷 픽셀과는 배율이 다를 수 있다 (iOS는 포인트, 스크린샷은 2~3배 픽셀) | ✅ |
 | `{device_adapter} swipe {id} {x1} {y1} {x2} {y2} [ms]` | 스와이프·스크롤 | ✅ |
 | `{device_adapter} screenshot {id} {out.png}` | 현재 화면을 PNG로 저장. 실패하면 exit 1 | ✅ |
 | `{device_adapter} key {id} back\|home` | 시스템 키. 플랫폼에 없으면 exit 1 (호출자가 화면의 버튼을 tap한다) | |
 
 - 앱 설치는 어댑터가 아니라 프로필 `빌드.install`이 한다 — 어댑터의 `ensure`가 고르는 기기와 같은 기기에 설치되도록 맞춘다.
+  (iOS 예: 시뮬레이터용으로 빌드한 뒤 `xcrun simctl install booted {앱.app}` — visual-verifier는 `ensure` 뒤에 설치하므로 `booted`가 그 시뮬레이터다.)
+- `builtin:ios-device`는 **시뮬레이터 전용**, `builtin:ios-real-device`는 **USB 실기기 전용**이다. 둘 다 `key back`은 없다 — 화면의 뒤로 버튼을 tap한다.
+- `builtin:ios-real-device`는 기기를 부팅하지 않는다. `ensure`는 포트 포워드(iproxy)를 열고 WebDriverAgent가 응답할 때까지 기다리며(필요하면 `wda_start` 실행), 자기가 띄운 것이 있으면 `BOOTED`를 낸다 — `cleanup`은 그 포워드·WDA 프로세스만 끝낸다.
+  WebDriverAgent는 본인 개발 팀으로 서명해 기기에 올릴 수 있어야 한다 (Xcode에서 WebDriverAgentRunner 타깃의 Team·Bundle Identifier 설정 — 한 번).
+  실기기 설치 예 (`빌드.install`): 기기용으로 빌드한 뒤 `xcrun devicectl device install app --device {udid} {앱.app}`.
 - 기기 선택에 설정이 필요하면(부팅할 기기 이름 등) 어댑터가 `화면 확인` 섹션에 자기 키를 정해 읽는다.
-- mock 스킬은 어댑터와 별개다 (`화면 확인.mock_skill`) — 같은 플랫폼의 것끼리 짝을 맞춘다.
+- mock 스킬은 어댑터와 별개다 (`화면 확인.mock_skill`) — 같은 플랫폼·같은 대상(에뮬레이터/실기기)의 것끼리 짝을 맞춘다.
+- **어댑터는 검사를 통과한 것만 프로필에 적는다**: `device-adapter-check.sh [--out <dir>] [<어댑터 경로>]`가 실제 기기로 위 호출을 한 바퀴 돌린다 (exit 0 계약 통과 / 1 계약 위반 / 2 도구·기기가 없어 검사 못 함). `/impl-setup` Step 4-1이 공용 어댑터를 고르거나 레포 전용 어댑터를 `.claude/impl-chain/adapters/`에 만든 뒤 이 검사를 돌린다. 어댑터를 손으로 고쳤을 때도 돌린다.
 
 ### 문서형 어댑터 (`UI 컴포넌트.map`, `디자인 토큰.map`, `문구.rule`)
 

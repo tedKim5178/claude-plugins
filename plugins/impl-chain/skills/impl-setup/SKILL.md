@@ -30,16 +30,15 @@ invocable: true
 
 ## 실행 단계
 
-### 0-0. 전제 확인 (GitHub 레포 기준 — 기기 확인은 Android 공용 어댑터)
+### 0-0. 전제 확인 (GitHub 레포 기준)
 
 ```bash
 for t in git gh jq python3; do command -v $t > /dev/null || echo "없음: $t"; done
 gh auth status 2>&1 | head -5                      # 로그인·scope (read:project는 BTS 상태 필터를 쓸 때만)
-${CLAUDE_PLUGIN_ROOT}/scripts/android-device.sh check             # 공용 기기 어댑터(Android)의 도구. 레포 전용 기기 어댑터가 있으면 그 스크립트의 check로 대신한다. 실패하면 화면 확인.mode 후보에서 device·device-mock 제외
 git remote -v                                       # 원격이 둘 이상이면 Step 3에서 PR용 원격(git.remote)을 묻는다
 git check-ignore -q .impl-spec/x && echo ".impl-spec ignored" || echo ".impl-spec NOT ignored"
 ```
-필수 도구(git·gh·jq·python3)가 없거나 gh가 로그인 안 돼 있으면 설치·로그인 방법을 안내하고 **중단**. 기기 도구가 없으면 진행하되 보고에 남긴다.
+필수 도구(git·gh·jq·python3)가 없거나 gh가 로그인 안 돼 있으면 설치·로그인 방법을 안내하고 **중단**. 기기 도구는 여기서 보지 않는다 — repo-profiler가 상황을 조사하고 Step 4-1이 어댑터를 실제로 검사한다.
 
 ### 0. 기존 프로필
 
@@ -73,8 +72,12 @@ AskUserQuestion으로 묻는다 (한 번에 최대 4개, 후보를 선택지로,
 - **BTS 필터**: 제외 라벨·프로젝트 상태 (gh `read:project` scope가 없으면 상태 필터를 쓰면 목록 조회가 실패한다는 점을 함께).
 - **기획서 위치**: 링크 레포 후보가 둘 이상이거나, 기획서가 앱 이슈 자체에 있는 경우.
 - **새 에셋 위치** (`asset_target`): drawable·asset 폴더가 둘 이상 모듈에 있으면 어느 모듈에 둘지 (분포를 보여주고)
-- **화면 확인** (`화면 확인.mode`): `device-mock`(서버 응답 mock 스킬이 있을 때 — 레포·`~/.claude/skills/`에서 찾은 후보를 보여주고) / `device`(기기로만, 서버 상태가 필요한 케이스는 수동) / `none`. 기기 어댑터의 `check`가 실패하면 `none`만.
-  기기 어댑터(`화면 확인.device_adapter`): Android 레포면 키를 생략한다(기본 `builtin:android-device`). 그 외 플랫폼은 레포에 계약(`impl-profile-spec.md` "기기 어댑터")을 지키는 스크립트가 있을 때만 그 경로를 적고, 없으면 `none`으로 두고 보고에 "기기 어댑터 필요"를 남긴다 — 어댑터를 여기서 지어 쓰지 않는다.
+- **화면 확인** (`화면 확인.mode` + 기기 어댑터): 제안서의 "화면 확인 상황" 절을 보고 묻는다.
+  - 모드: `device-mock`(서버 응답 mock 스킬이 있을 때 — 레포·`~/.claude/skills/`에서 찾은 후보를 보여주고) / `device`(기기로만, 서버 상태가 필요한 케이스는 수동) / `none`.
+  - 기기 어댑터 후보가 둘 이상이면 어느 쪽으로 볼지 (예: iOS — 시뮬레이터 `builtin:ios-device` / USB 실기기 `builtin:ios-real-device`. 실기기는 USB 연결과 WebDriverAgent 서명이 필요하다는 점, mock 스킬이 그 대상을 지원하는지를 description에).
+  - 어댑터가 읽는 키 중 관찰로 못 정한 것 (예: 실기기 `wda_start` — WebDriverAgent 프로젝트 경로를 물어서 채운다. 모르면 생략).
+  - 맞는 공용 어댑터가 없는 플랫폼·도구면: "레포 전용 어댑터를 만들어 검증" / "`none`으로 두기".
+  어댑터를 정하고 만드는 일은 Step 4-1에서 한다 — 여기서는 방향만 받는다.
 - **테스트 코드 보존** (`빌드.test_retention`): `discard`(기본 — 작업 중 추가한 테스트를 통과 확인 뒤 지우고 커밋하지 않음) / `keep`(테스트도 커밋). 레포에 기존 테스트가 많고 CI가 돌리면 `keep`을 첫 선택지로.
 - **PR 원격** (`git.remote`): `git remote`가 둘 이상일 때만 (포크 구조면 PR을 올릴 쪽). 하나면 묻지 않고 키를 생략한다 (기본 origin).
 
@@ -92,6 +95,44 @@ AskUserQuestion으로 묻는다 (한 번에 최대 4개, 후보를 선택지로,
 이슈 어댑터는 GitHub이면 공용 — 만들지 않고 프로필에 `spec_adapter: builtin:gh-spec-issue`, `bts_adapter: builtin:gh-bts-issue`로 적는다 (경로를 적지 않는다 — 체인이 플러그인이면 경로가 레포 밖이다).
 GitHub이 아니면 계약에 맞춘 어댑터를 `{out}/adapters/`에 만들고 `list`·`fetch`를 실제 이슈 1건으로 실행해 확인한다.
 
+### 4-1. 기기 어댑터 — 고르고, 없으면 만들고, 반드시 검사한다 (`화면 확인.mode`가 `none`이 아닐 때)
+
+화면 확인은 기기 어댑터(프로필 `화면 확인.device_adapter`)로 기기를 다룬다. 계약: `${CLAUDE_PLUGIN_ROOT}/references/impl-profile-spec.md` "기기 어댑터".
+
+**1) 고른다 — 공용 어댑터가 맞으면 그걸 쓴다 (만들지 않는다)**
+
+| 상황 (제안서 "화면 확인 상황") | 어댑터 | 프로필에 적는 값 |
+|------|--------|-----------------|
+| Android 레포 | 공용 `android-device.sh` | 키 생략 (기본값) |
+| iOS 레포 — 시뮬레이터로 본다 | 공용 `ios-device.sh` | `builtin:ios-device` (+ 필요하면 `simulator`) |
+| iOS 레포 — USB 실기기로 본다 | 공용 `ios-real-device.sh` | `builtin:ios-real-device` (+ `wda_start` 등) |
+| 그 외 (다른 플랫폼, 공용 어댑터가 쓰는 도구를 쓸 수 없는 환경) | 2)로 | 레포 상대 경로 |
+
+mock 스킬이 있으면 그 스킬이 다루는 대상과 **짝이 맞는** 어댑터를 고른다 (스킬이 시뮬레이터 파일 경로만 다루는데 실기기 어댑터를 고르면 mock을 넣을 수 없다). 스킬이 쓰는 포트·도구와 어댑터의 것이 겹치면 어댑터 키로 피한다 (예: `wda_port`).
+
+**2) 없으면 만든다 — `{out}/adapters/{platform}-device.sh`**
+
+- 계약의 필수 호출(`check`·`ensure`·`cleanup`·`ui`·`tap`·`swipe`·`screenshot`)과 종료 코드(3·4·5), `BOOTED {id}` 규칙을 그대로 지킨다.
+- **가장 가까운 공용 어댑터를 본보기로 읽고 구조를 따른다** (`${CLAUDE_PLUGIN_ROOT}/scripts/android-device.sh`, `ios-device.sh`, `ios-real-device.sh`) — 인자 검사, 자기가 띄운 것만 정리하는 표시 파일, 프로필 키를 `impl-profile.sh get`으로 읽는 방식.
+- 도구 명령은 **그 도구의 `--help`·공식 문서로 확인한 문법만** 쓴다. 기억으로 쓰지 않는다. 확인하지 못한 호출이 있으면 만들지 않고 질문으로 돌린다.
+- 도구를 대신 설치하지 않는다 — 없으면 설치 방법을 보여주고 사용자가 설치한 뒤 이어간다.
+- mock 스킬은 **참고만** 한다: 플랫폼·대상(에뮬레이터/실기기)·쓰는 포트를 알려줄 뿐, 화면 읽기·터치 방법은 스킬에 없다.
+
+**3) 검사한다 — 공용이든 새로 만든 것이든, 프로필에 적기 전에**
+
+```bash
+${CLAUDE_PLUGIN_ROOT}/scripts/device-adapter-check.sh --out .impl-spec/setup/device-check {어댑터 절대 경로}
+```
+기기를 실제로 조작한다 (화면 구석 탭, 홈 키). 실행 전에 "연결된 기기/에뮬레이터로 어댑터를 검사합니다"를 한 줄 알린다.
+
+| exit | 뜻 | 처리 |
+|------|----|------|
+| 0 (`RESULT ok`) | 계약대로 동작 | `.impl-spec/setup/device-check/ui.out`을 **직접 읽어** 화면의 글자와 좌표가 요소마다 들어 있는지 확인하고(스크립트는 형식을 판정하지 않는다) `screen.png`를 열어 실제 화면인지 본다. 맞으면 프로필에 적는다 |
+| 1 (`contract-fail`) | 어댑터가 계약을 어김 | 새로 만든 어댑터면 `FAIL` 줄대로 고치고 다시 (3회까지). 공용 어댑터면 고치지 않는다 — 출력 그대로 보고하고 `none`으로 둘지 묻는다 |
+| 2 (`env-unavailable`) | 도구·기기가 없어 검사하지 못함 | `SKIP` 줄의 사유(설치 방법, 기기 연결)를 그대로 보여주고 묻는다: "준비 후 다시 검사" / "검사 없이 적기 — 보고에 **미검증**으로 남김" / "`none`으로 두기" |
+
+검사를 통과하지 못한 어댑터를 통과한 것처럼 적지 않는다. 미검증으로 적었으면 Step 6 보고의 "확인 필요"에 남긴다.
+
 ### 5. 쓰기 + 검증
 
 1. 최종 값 요약(키 · 값 · 근거 · 사용자 결정 여부)과 **`.gitignore`에 `.impl-spec/` 추가 여부**(Step 0-0에서 NOT ignored였으면)를 보여주고 승인받는다.
@@ -105,6 +146,7 @@ GitHub이 아니면 계약에 맞춘 어댑터를 `{out}/adapters/`에 만들고
    A=$(${CLAUDE_PLUGIN_ROOT}/scripts/impl-profile.sh adapter 이슈.spec_adapter) && $A milestones && $A list {최근 마일스톤}   # 출력 형식이 계약대로인지
    B=$(${CLAUDE_PLUGIN_ROOT}/scripts/impl-profile.sh adapter 이슈.bts_adapter) && $B list | jq length                        # bts를 쓰면 (read:project 오류면 bts_project_status를 빼거나 gh auth refresh -s read:project)
    ```
+   - 기기 어댑터: Step 4-1의 검사 결과(`RESULT`)가 있어야 한다 — `화면 확인.mode`가 `none`이 아닌데 검사를 돌리지 않았으면 여기서 돌린다.
    - 빌드: 모듈 유형마다 compile·test 명령의 태스크가 **존재**하는지 — 실제 빌드 없이 확인 (Gradle: `-m` dry-run, Xcode: `-list`·`-showBuildSettings`).
 
 ### 6. 보고
@@ -112,6 +154,7 @@ GitHub이 아니면 계약에 맞춘 어댑터를 `{out}/adapters/`에 만들고
 ```
 ✅ impl-chain 프로필 생성 → {out}/profile.md
 모드: 토큰 {mode} / 컴포넌트 {mode} / 문구 {mode} / 화면 확인 {mode} / 서버 계약 {mode}
+기기 어댑터: {builtin 이름 또는 만든 파일} — 검사 {ok | 미검증(사유) | 해당 없음(none)}
 어댑터: {만든 파일 목록}
 사용자 결정: {질문과 답}
 ⚠️ 확인 필요: {confidence medium 이하로 남은 키, 환경 이슈(PATH·gh scope)}

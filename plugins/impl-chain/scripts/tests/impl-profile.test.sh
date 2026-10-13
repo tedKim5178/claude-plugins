@@ -110,6 +110,11 @@ echo "기기 어댑터"
 F=$(variant dev-builtin <<< 's/^- mock_skill: .*/&\n- device_adapter: builtin:android-device/')
 [ "$(env IMPL_PROFILE="$F" $P adapter "화면 확인.device_adapter")" = "$SCRIPTS/android-device.sh" ] && ok "builtin:android-device 해석" || bad "builtin:android-device 해석"
 expect_exit "builtin 기기 어댑터 check 통과" 0 env IMPL_PROFILE="$F" $P check
+F=$(variant dev-ios <<< 's/^- mock_skill: .*/&\n- device_adapter: builtin:ios-device/')
+[ "$(env IMPL_PROFILE="$F" $P adapter "화면 확인.device_adapter")" = "$SCRIPTS/ios-device.sh" ] && ok "builtin:ios-device 해석" || bad "builtin:ios-device 해석"
+expect_exit "builtin:ios-device check 통과" 0 env IMPL_PROFILE="$F" $P check
+F=$(variant dev-ios-real <<< 's/^- mock_skill: .*/&\n- device_adapter: builtin:ios-real-device/')
+[ "$(env IMPL_PROFILE="$F" $P adapter "화면 확인.device_adapter")" = "$SCRIPTS/ios-real-device.sh" ] && ok "builtin:ios-real-device 해석" || bad "builtin:ios-real-device 해석"
 printf '#!/bin/bash\necho custom\n' > .claude/impl-chain/adapters/ios-device.sh && chmod +x .claude/impl-chain/adapters/ios-device.sh
 F=$(variant dev-custom <<< 's/^- mock_skill: .*/&\n- device_adapter: .claude\/impl-chain\/adapters\/ios-device.sh/')
 [ "$(env IMPL_PROFILE="$F" $P adapter "화면 확인.device_adapter")" = "$(pwd -P)/.claude/impl-chain/adapters/ios-device.sh" ] && ok "레포 전용 기기 어댑터 경로" || bad "레포 전용 기기 어댑터 경로: $(env IMPL_PROFILE="$F" $P adapter "화면 확인.device_adapter" 2>&1) vs $(pwd -P)"

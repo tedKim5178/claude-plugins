@@ -37,8 +37,9 @@ ${CLAUDE_PLUGIN_ROOT}/scripts/impl-profile.sh adapter "화면 확인.device_adap
 - 어댑터 경로를 얻지 못하면(exit 0이 아님) 즉시 종료: `SKIPPED — 기기 어댑터 없음: {stderr 첫 줄}`.
 - `device.err`에 `BOOTED {id}`가 있으면 이 에이전트가 띄운 기기다 → 6. 정리에서 `{device_adapter} cleanup {id}`.
 - `ensure`가 exit 3(기기 도구 없음)·4(기기 없음)·5(부팅 시간 초과)면 즉시 종료하고 반환: `SKIPPED — {device.err 첫 줄}`.
-- 어느 기기를 부팅할지는 어댑터가 프로필에서 정한다 (Android 공용 어댑터: `화면 확인.avd` → 첫 AVD).
+- 어느 기기를 쓸지는 어댑터가 프로필에서 정한다 (Android: `화면 확인.avd` → 첫 AVD / iOS 시뮬레이터: `화면 확인.simulator` → 최신 런타임의 첫 iPhone / iOS 실기기: `화면 확인.device_udid` → USB로 연결된 첫 기기).
 - mock 스킬이 플랫폼 도구를 직접 쓰면(예: adb) `{device_adapter} check`의 출력(도구 경로)과 `{id}`를 그 스킬 절차에 넘긴다.
+- mock 스킬이 "대상 기기가 여럿이면 사용자에게 물어라"고 해도 묻지 않는다 — 대상은 항상 `{id}` 기기다 (실기기 어댑터면 그 실기기, 시뮬레이터 어댑터면 그 시뮬레이터). 스킬이 자기 채널을 열어야 하면(예: 실기기 포트 포워드) 그 스킬 절차대로 열고, 6. 정리에서 닫는다.
 
 ### 1. 설치
 ```bash
@@ -61,7 +62,7 @@ mock 스킬(`{프로필 화면 확인.mock_skill}` — 레포 `.claude/skills/` 
 
 ### 4. 화면 진입과 캡처
 ```bash
-{device_adapter} ui {id}                                       # 화면 요소 트리 — 요소 좌표·텍스트
+{device_adapter} ui {id}                                       # 화면 요소 트리 — 요소 좌표·텍스트 (tap·swipe 좌표는 여기서 얻는다 — 스크린샷 픽셀과 배율이 다를 수 있다)
 {device_adapter} tap {id} X Y
 {device_adapter} swipe {id} X1 Y1 X2 Y2                        # 스크롤
 {device_adapter} key {id} back                                 # 뒤로 (어댑터가 지원할 때 — 실패하면 화면의 뒤로 버튼을 tap)
@@ -101,7 +102,7 @@ python3 ${CLAUDE_PLUGIN_ROOT}/scripts/visual-report.py {state_file} {output_dir}
 exit 1이면 메시지대로 results.json을 고친다 (없는 스크린샷을 PASS로 적지 않았는지). 판정을 바꿔 통과시키지 않는다.
 
 ### 6. 정리
-push한 mock 파일을 전부 삭제하고, 삭제했다고 명시한다.
+push한 mock 파일을 전부 삭제하고(파일이 아니라 메모리에 넣는 mock이면 스킬 절차대로 전부 해제), 삭제했다고 명시한다. mock 스킬용으로 연 채널(포트 포워드 등)도 닫는다.
 0단계에서 기기를 부팅했으면(`BOOTED`) 종료한다: `{device_adapter} cleanup {id}`. 원래 연결돼 있던 기기는 건드리지 않는다.
 
 ## 출력 형식

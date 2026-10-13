@@ -5,7 +5,7 @@
 #   impl-profile.sh get <섹션>.<키>                                    값 출력. 없으면 exit 2
 #   impl-profile.sh check [--for analyze-spec|analyze-bts|start-work]  게이트. 문제는 stderr, 실패 exit 1
 #   impl-profile.sh adapter <이슈.spec_adapter|이슈.bts_adapter|화면 확인.device_adapter>   실행할 어댑터 절대 경로 출력
-#       값 `builtin:gh-spec-issue` / `builtin:gh-bts-issue` / `builtin:android-device` → 이 스크립트와 같은 폴더의 공용 어댑터
+#       값 `builtin:gh-spec-issue` / `builtin:gh-bts-issue` / `builtin:android-device` / `builtin:ios-device` / `builtin:ios-real-device` → 이 스크립트와 같은 폴더의 공용 어댑터
 #       (예전 값 `.claude/scripts/gh-*.sh`도 builtin으로 본다) / 그 외 → 레포 루트 기준 경로 (레포 전용 어댑터)
 #       `화면 확인.device_adapter`는 키가 없으면 `builtin:android-device`로 본다
 #
@@ -19,7 +19,7 @@ PROFILE="${IMPL_PROFILE:-$ROOT/.claude/impl-chain/profile.md}"
 HERE="$(cd "$(dirname "$0")" && pwd)"
 
 # 공용 어댑터 — builtin:{이름} → $HERE/{이름}.sh. 이슈 어댑터를 쓰면 그 어댑터가 읽는 키도 필수가 된다
-BUILTIN_ADAPTERS="gh-spec-issue gh-bts-issue android-device"
+BUILTIN_ADAPTERS="gh-spec-issue gh-bts-issue android-device ios-device ios-real-device"
 # 기기 어댑터 키 — 없으면 기본값 (기기 어댑터가 생기기 전에 쓴 프로필이 그대로 돌도록)
 DEVICE_ADAPTER_KEY="화면 확인.device_adapter"
 DEVICE_ADAPTER_DEFAULT="builtin:android-device"
