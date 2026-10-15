@@ -102,5 +102,27 @@ echo "기본 위치"
 cp "$T/keep.json" "$OUT/results.json"
 expect "{output_dir}/results.json을 기본으로 읽음" 0 "$T/state.json" "$OUT"
 
+echo "레이아웃"
+jq '.ui_specs = [{"file": "x.md"}]' "$T/state.json" > "$T/state-ui.json"
+expect "ui_specs 있는데 target PASS에 layout 없음" 1 "$T/state-ui.json" "$OUT" --results "$T/keep.json"
+has "$T/stderr" "V1" "layout 없는 PASS의 case id"
+jq '.results[0].layout = [{"element": "E2 타이틀", "expect": "start padding 20", "actual": "21.8", "ok": true},
+                          {"element": "E12 icon", "expect": "centerH", "actual": "중심 차이 18", "ok": false}]' "$T/keep.json" > "$T/lay.json"
+expect "layout ok:false인데 PASS" 1 "$T/state-ui.json" "$OUT" --results "$T/lay.json"
+has "$T/stderr" "E12 icon" "불일치 요소 이름"
+jq '.results[0].verdict = "FAIL"' "$T/lay.json" > "$T/lay-fail.json"
+expect "layout 불일치 → FAIL은 허용" 0 "$T/state-ui.json" "$OUT" --results "$T/lay-fail.json"
+has "$H" "레이아웃 1/2" "레이아웃 집계 표시"
+has "$H" "중심 차이 18" "실제 측정값 표시"
+jq '.results[0].layout = [{"element": "E2", "expect": "start padding 20", "ok": "yes"}]' "$T/keep.json" > "$T/lay-bad.json"
+expect "layout ok가 bool 아님" 1 "$T/state-ui.json" "$OUT" --results "$T/lay-bad.json"
+jq '.results[0].layout_na = "기존 화면 — ui-spec 없음"' "$T/keep.json" > "$T/lay-na.json"
+expect "layout_na 사유가 있으면 PASS 허용" 0 "$T/state-ui.json" "$OUT" --results "$T/lay-na.json"
+has "$H" "레이아웃 측정 안 함" "layout_na 표시"
+jq '.extra_cases[0].kind = "target"' "$T/keep.json" > "$T/lay-x.json"
+jq '.results[0].layout_na = "n/a"' "$T/lay-x.json" > "$T/lay-x2.json"
+expect "extra target PASS에도 layout 필요" 1 "$T/state-ui.json" "$OUT" --results "$T/lay-x2.json"
+has "$T/stderr" "X1" "extra case id"
+
 echo
 [ "$FAIL" = 0 ] && echo "ALL PASS" || { echo "FAILED"; exit 1; }

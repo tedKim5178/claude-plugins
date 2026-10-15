@@ -35,7 +35,7 @@ nodeId는 `index.md` 화면 표에서 screen_id로 찾는다. 하나라도 없�
 
 화면마다:
 - `get_design_context`(스크린샷 포함). 응답이 sparse라고 표시되면 자식 nodeId들로 다시 병렬 호출해 고해상도 응답을 받는다.
-  응답 중 **레이아웃 트리를 만든 근거가 되는 부분**(화면 루트부터 영역·컨테이너 구조, data-name/data-node-id)을 `figma_dir/context/{nodeId}.md`에 저장한다. 시스템 UI 본문·반복 블록은 생략해도 된다 — 참고용이며 구현 기준은 트리·표다.
+  응답 중 **레이아웃 트리를 만든 근거가 되는 부분**(화면 루트부터 영역·컨테이너 구조, data-name/data-node-id)을 `figma_dir/context/{nodeId}.md`에 저장한다. 첫 줄에 화면 루트 프레임 크기를 `frame: {폭}x{높이}`로 적는다 (visual-verifier가 기기 배율을 구할 때 쓴다). 시스템 UI 본문·반복 블록은 생략해도 된다 — 참고용이며 구현 기준은 트리·표다.
 - `get_variable_defs` → JSON을 `figma_dir/vars/{nodeId}.json`에 저장한 뒤, 프로필 `디자인 토큰.mode`대로:
   - `map`: 4절 "토큰" 판정 규칙으로 변수마다 토큰을 정한다. 시스템 UI(statusbar, bottom_bar) 전용 변수는 판정하지 않는다.
   - `none`: 토큰을 고르지 않는다. 요소 표에 **원시 값**(hex, 글자 크기·굵기·행간)을 그대로 적는다. 토큰 관련 질문 없음.
@@ -55,15 +55,40 @@ Figma의 auto-layout 프레임 구조를 **프로젝트 레이아웃 기본 요�
   명확한 경우만 자동: 화면 전체 중앙 오버레이 → `[겹침] Box(fillMaxSize, Center)`, 하단 고정 container → `[고정 하단]`, 상단 고정 nav → `[고정 상단]`.
   그 외(겹침 순서가 의미 있음, 스크롤과 함께 움직이는지 불명확 등)는 질문(`layout:{그룹}:{요소}`).
 
+### 배치 의도 — Figma 좌표를 숫자로 옮기지 않는다
+
+구현은 이 트리·표만 보고 하므로, 요소의 **위치를 어떻게 정하는지(의도)**가 여기서 정해져야 한다.
+Figma의 x/y 좌표·frame 안 offset을 그대로 `padding`/`offset` 숫자로 적지 않는다 — 기기 폭·높이가 Figma 프레임과 다르면 위치가 틀어진다.
+
+요소마다 배치를 아래 중 하나로 적고, **괄호에 Figma 근거**를 단다:
+
+| 배치 | 뜻 | Figma 근거로 인정하는 것 (`get_design_context` 코드 / `get_metadata`) |
+|------|----|------------------------------------------------|
+| `center` / `centerH` / `centerV` | 부모 안에서 가운데 (기기 크기가 달라도 가운데) | auto-layout 정렬 `items-center`·`justify-center`·`content-center`, 제약 center(`left-1/2 -translate-x-1/2`, `top-1/2 -translate-y-1/2`, `inset-0 m-auto`) |
+| `start`/`end`/`top`/`bottom` + `padding {n}` | 부모 가장자리에서 n만큼 | auto-layout `p*`/`px-[n]`/`pt-[n]` + 정렬 start·end, 제약 left·right·top·bottom 고정 |
+| `gap {n}` | 형제와의 간격 | auto-layout `gap-[n]` |
+| `fill` / `weight` / `spacer` | 남는 공간을 채움·밀어냄 | `flex-1`·`w-full`·fill container, `justify-between` |
+
+- 근거가 **명시적 속성**(auto-layout 정렬·padding·gap, 제약)이면 자동으로 적는다: `Icon 24 centerH (AL items-center)`, `Text start padding 20 (AL px-[20])`.
+- 근거가 **좌표뿐**이면 자동으로 정하지 않는다 — 질문 `layout:{그룹}:{요소}`. 특히:
+  - absolute 배치(`left-[137px] top-[312px]`)이거나 auto-layout 없는 frame 안 요소
+  - 좌우(또는 상하) 여백이 같아 **숫자로는 가운데처럼 보이지만** center 속성이 없음 (예: 360 폭 화면에 `left 156`, 폭 48 → 좌우 156)
+  - 정렬 start인데 padding이 대칭이고 자식이 고정 폭이라 가운데인지 여백인지 갈림
+  - 화면 "중간"쯤 있는 아이콘·빈 상태 뷰·로딩처럼 세로 위치가 화면 높이 기준인지 위 요소 기준인지 불명확
+  - 케이스(화면)마다 좌표가 달라 의도가 하나로 안 모임
+- 질문의 후보는 의도로 적는다: `center (기기 폭이 넓어져도 가운데)` / `start + padding 156 (넓은 기기에서 왼쪽으로 치우침)` / `위 요소 아래 gap 40` 등. 근거에 Figma 값(x·y·폭·부모 폭)을, `recommended_reason`에 왜 그 후보인지를 적는다.
+- 트리·요소 표의 배치 칸에 질문이 걸린 요소는 `미확정 → layout:{그룹}:{요소}`로 적는다. **확정되기 전 값을 추측해 채우지 않는다.**
+
 예:
 ```
 Screen (Column, fillMaxSize, bg {배경 토큰})
 ├─ [고정 상단] {공용 TopBar 컴포넌트} h44                          → E1
 ├─ [스크롤 영역] Column(weight 1, verticalScroll)
-│   ├─ Text 타이틀 px20 py12                                      → E2
+│   ├─ Text 타이틀 start px20 py12 (AL px-[20] py-[12])           → E2
 │   └─ Column(gap 0) 카드 리스트 — accounts 반복                   → E3 [accounts > 0]
 ├─ [겹침] Box(fillMaxSize, Center) 빈 상태                         → E11 [accounts == 0]  (Figma absolute — 전체 중앙 오버레이)
-└─ [고정 하단] gradient h24 → Box(pt4 pb16 px16) Button h56       → E12
+│   └─ Icon 48 centerH, 위치 미확정 → layout:계정목록:empty_icon     → E12  (absolute top 212 — 화면 중앙인지 위 기준 여백인지 불명확)
+└─ [고정 하단] gradient h24 → Box(pt4 pb16 px16) Button h56 fill  → E13
 ```
 
 ## 3. 요소 표 — 요소 하나 = 한 행
@@ -80,6 +105,7 @@ Screen (Column, fillMaxSize, bg {배경 토큰})
 | 타이포 | 4절 토큰 판정 결과(모드 `map`: 토큰 / `미확정: 후보 {A}, {B}` / `없음 — 원시 값`이면 크기·굵기·행간) 또는 원시 값(`none`) |
 | 색상 | 4절 토큰 판정 결과(모드 `map`: 토큰 / `미확정: 후보 {A}, {B}` / `없음 — 원시 값`이면 hex) 또는 원시 값(`none`: hex) |
 | 크기/간격 | 값을 프로젝트 단위(dp/pt/px)로: size, padding, gap, radius, border. 변수로 온 값은 변수명도 (`padding/p6 = 12`) |
+| 배치 | 2절 "배치 의도" — `centerH (AL items-center)` / `start padding 20 (AL px-[20])` / `미확정 → layout:…`. 트리와 같은 값. 좌표 숫자만 적지 않는다 |
 | 아이콘/에셋 | Figma 이름 + 4절 에셋 판정 결과 (프로젝트 참조 / `export → {target}` / `미확정`) |
 | 구조 메모 | 아래 "놓치기 쉬운 것" 해당 사항 |
 
@@ -139,7 +165,8 @@ git grep -n -i "{data-name의 핵심 단어}" -- {프로필 코드.source_glob} 
 
 ### 레이아웃 번역
 
-2절의 absolute 번역 규칙. 자동이면 트리에 사유, 아니면 질문 `layout:{그룹}:{요소}`.
+2절의 absolute 번역 규칙과 "배치 의도" 규칙. 자동이면 트리에 사유(Figma 근거), 아니면 질문 `layout:{그룹}:{요소}`.
+가운데인지 여백인지 **조금이라도 갈리면 질문이다** — 질문 하나가 잘못된 위치로 구현돼 실기기에서 발견되는 것보다 싸다.
 
 ### 토큰 (`디자인 토큰.mode=map`)
 
@@ -190,7 +217,7 @@ git grep -n -i "{data-name의 핵심 단어}" -- {프로필 코드.source_glob} 
 {2절 트리}
 
 ## 요소 표
-| id | 요소 | 종류 | 컴포넌트 | 문구 / 키 | 타이포 | 색상 | 크기·간격 | 아이콘 | 구조 메모 |
+| id | 요소 | 종류 | 컴포넌트 | 문구 / 키 | 타이포 | 색상 | 크기·간격 | 배치 | 아이콘 | 구조 메모 |
 
 ## 케이스 간 차이
 | 요소 | {케이스…} | 조건 |
@@ -227,7 +254,11 @@ result.json 형식:
      "apply_by_answer": {"{후보 문자열}": [{"kind": "map_row", "op": "add 또는 replace(기존 행)", "…": "…"}]}},
     {"key": "token:bg/primary", "question": "bg/primary(#FFFFFF)와 값이 같은 토큰이 2개", "candidates": ["Colors.Background", "Colors.Surface"],
      "evidence": "Colors.kt:10, Colors.kt:14", "recommended_reason": "이름이 Figma 변수와 닮음",
-     "apply_by_answer": {"Colors.Background": [{"kind": "token_row", "op": "add", "figma_name": "bg/primary", "token": "Colors.Background", "value": "#FFFFFF", "evidence": "사용자 결정 (spec-1234)"}]}}
+     "apply_by_answer": {"Colors.Background": [{"kind": "token_row", "op": "add", "figma_name": "bg/primary", "token": "Colors.Background", "value": "#FFFFFF", "evidence": "사용자 결정 (spec-1234)"}]}},
+    {"key": "layout:계정목록:empty_icon", "question": "빈 상태 아이콘의 세로 위치 — 화면 가운데인가, 위 요소 기준 여백인가",
+     "candidates": ["화면(겹침 Box) 세로 가운데", "타이틀 아래 gap 160"],
+     "evidence": "absolute top 212, 프레임 높이 640, 아이콘 48 — 위아래 여백 212·380로 비대칭, center 제약 없음",
+     "recommended_reason": "빈 상태 오버레이는 기존 화면들이 가운데 정렬 (EmptyView.kt:31)"}
   ],
   "shared_candidates": ["{data-name} (사용 이슈 3개)"]
 }

@@ -53,6 +53,8 @@ git diff "$MB"
 **ui-spec 대조** (state_file의 `ui_specs[].file`이 있으면 필수. 없으면 `.impl-spec/{type}-{n}.figma/ui-spec/*.md`):
 - **레이아웃 트리**: 영역(고정 상단 / 스크롤 / 고정 하단 / 겹침)·노드 계층·`[조건]` 노드가 코드 구조와 같은지 본다.
   예: 트리에서 `[고정 하단]`인 CTA가 코드에서 스크롤 Column 안에 있으면 Critical. `[accounts == 0]` 노드가 조건 없이 항상 그려지면 Critical.
+- **배치 의도**: 트리·요소 표의 `배치`(center / padding / gap / fill)와 코드의 배치 방식이 같은지 본다 (`미확정`이었던 것은 decisions의 `layout:` 답 기준).
+  예: 배치가 `centerH`인데 코드가 `padding(start = 156.dp)`·`offset`으로 가운데처럼 맞췄으면 Critical. 반대로 `start padding 20`인데 center 정렬이면 Critical. ui-spec·decisions 어디에도 없는 크기·간격 숫자가 코드에 있으면 Important.
 - 요소 표의 **모든 행**에 대해 코드의 컴포넌트·문구 키·타이포·색상(토큰 또는 원시 값)·크기·아이콘이 표와 같은지 본다.
   예: 표의 색상이 본문 텍스트 토큰(또는 원시 값 `#1A1A1A`)인데 코드가 캡션 토큰(다른 값)이면 Critical.
 - 구조 메모(컨테이너 크기, 도형 vs 텍스트, 그룹 경계)가 코드에 반영됐는지.
@@ -66,8 +68,8 @@ git diff "$MB"
 
 | 등급 | 기준 |
 |------|------|
-| **Critical** | 요구 미충족 / 문구·값 불일치 / 트리거 불일치 / todo 해석 오류로 원문과 다르게 구현됨 / ui-spec의 토큰·컴포넌트·케이스 차이·레이아웃 트리 구조 불일치 |
-| **Important** | 근거 없는 동작 추가(과잉 구현) / acceptance를 단언하지 않는 테스트 |
+| **Critical** | 요구 미충족 / 문구·값 불일치 / 트리거 불일치 / todo 해석 오류로 원문과 다르게 구현됨 / ui-spec의 토큰·컴포넌트·케이스 차이·레이아웃 트리 구조·배치 의도 불일치 |
+| **Important** | 근거 없는 동작 추가(과잉 구현) / ui-spec·decisions에 없는 크기·간격 숫자 / acceptance를 단언하지 않는 테스트 |
 
 ## 출력 형식 (변경 금지)
 

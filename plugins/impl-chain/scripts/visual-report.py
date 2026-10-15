@@ -9,14 +9,17 @@ Usage:
   [{id, todo_id, scenario, condition, kind: target|regression, expect}]
 - results.json (기본: {output_dir}/results.json) — visual-verifier가 쓴 실제 결과
   {device, build, commit, entry, mock_files: [], not_verified: [], observations: [],
-   results: [{case_id, verdict: PASS|FAIL|MANUAL, evidence, screenshot}],
-   extra_cases: [{id, todo_id, scenario, condition, kind, expect, verdict, evidence, screenshot}]}
+   results: [{case_id, verdict: PASS|FAIL|MANUAL, evidence, screenshot, layout?, layout_na?}],
+   extra_cases: [{id, todo_id, scenario, condition, kind, expect, verdict, evidence, screenshot, layout?, layout_na?}]}
   screenshot은 output_dir 안의 파일 이름이다.
+  layout = [{element, expect, actual, ok: bool}] — ui-spec 배치를 기기에서 잰 결과. layout_na = 재지 않은 사유.
 
 동작:
 - 같은 scenario끼리 한 줄로 묶고 condition별로 나란히 놓는다 (target 먼저).
 - 계획에 있는데 결과가 없는 케이스는 NOT_RUN("확인 안 함")으로 싣는다 — 조용히 빠지지 않는다.
 - PASS·FAIL은 스크린샷 파일이 있어야 한다. 증거 없는 판정은 거부한다.
+- layout에 ok:false가 있으면 PASS를 거부한다. 상태 파일에 ui_specs가 있으면 target 케이스의 PASS는
+  layout(비어 있지 않음) 또는 layout_na가 있어야 한다 — 요소 유무만 보고 PASS하지 않는다.
 - {output_dir}/report.html을 쓰고 stdout에 `REPORT {경로} — PASS a / FAIL b / MANUAL c / NOT_RUN d`.
   --fragment면 doctype/html/head/body 껍데기 없이 쓴다 (Artifact 게시용).
 
@@ -62,6 +65,22 @@ def check_shot(out_dir, case_id, verdict, shot):
         fail(f"{case_id}: screenshot 파일 없음: {shot}")
 
 
+def check_layout(case_id, verdict, kind, r, need):
+    lay = r.get("layout")
+    if lay is not None:
+        if not isinstance(lay, list):
+            fail(f"{case_id}: layout은 배열이어야 함")
+        for it in lay:
+            if not isinstance(it, dict) or not it.get("element") or not it.get("expect") \
+                    or not isinstance(it.get("ok"), bool):
+                fail(f"{case_id}: layout 항목은 element·expect·ok(bool)가 있어야 함: {it}")
+        bad = [it["element"] for it in lay if not it["ok"]]
+        if bad and verdict == "PASS":
+            fail(f"{case_id}: 레이아웃 불일치({', '.join(bad)})가 있는데 PASS — FAIL로 적는다")
+    if need and verdict == "PASS" and kind == "target" and not lay and not r.get("layout_na"):
+        fail(f"{case_id}: PASS인데 layout 측정이 없음 — ui-spec 배치를 재서 layout에 적거나 layout_na에 사유를 적는다")
+
+
 CSS = """
 :root{--bg:#f4f5f9;--surface:#fff;--ink:#131a36;--muted:#5b6382;--line:#d9dcea;--accent:#12205a;
 --pass:#0f7a4d;--pass-bg:#dff3e8;--fail:#b3261e;--fail-bg:#fbe1df;--warn:#8a5a00;--warn-bg:#fbeecb;
@@ -97,6 +116,8 @@ figcaption{display:flex;flex-direction:column;gap:4px;font-size:13.5px;overflow-
 .top{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
 .cond{font-weight:600}.target .cond{color:var(--accent)}
 .sub{font-family:var(--mono);font-size:11.5px;color:var(--muted)}
+.layout{margin:0;padding-left:16px;font-size:12.5px;gap:2px}
+.layout .bad{color:var(--fail);font-weight:600}
 .notes{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:26px}
 .notes>div{display:flex;flex-direction:column;gap:8px;min-width:0}
 ul{margin:0;padding-left:18px;display:flex;flex-direction:column;gap:5px}
@@ -113,6 +134,16 @@ def render_case(c):
         media = f'<div class="noshot">{esc(LABEL[v])} — 스크린샷 없음</div>'
     extra = ' · 계획에 없던 케이스' if c.get("extra") else ""
     ev = f'<span>{esc(c["evidence"])}</span>' if c.get("evidence") else ""
+    lay = c.get("layout") or []
+    if lay:
+        n_ok = sum(1 for it in lay if it["ok"])
+        items = "".join(
+            f'<li class="{"ok" if it["ok"] else "bad"}">{"✓" if it["ok"] else "✗"} {esc(it["element"])} — '
+            f'기대 {esc(it["expect"])}{" / 실제 " + esc(it["actual"]) if it.get("actual") else ""}</li>'
+            for it in lay)
+        ev += f'<span>레이아웃 {n_ok}/{len(lay)}</span><ul class="layout">{items}</ul>'
+    elif c.get("layout_na"):
+        ev += f'<span>레이아웃 측정 안 함: {esc(c["layout_na"])}</span>'
     return (
         f'<figure class="{esc(c["kind"])}" data-case="{esc(c["id"])}">{media}<figcaption>'
         f'<div class="top"><span class="cond">{esc(c["condition"])}</span>'
@@ -154,6 +185,7 @@ def main(argv):
     res = load(results_path or os.path.join(out_dir, "results.json"), "results.json")
 
     planned = state.get("visual_cases") or []
+    need_layout = bool(state.get("ui_specs"))
     by_id = {c["id"]: c for c in planned}
     got = {}
     for r in res.get("results") or []:
@@ -163,13 +195,15 @@ def main(argv):
         if r.get("verdict") not in VERDICTS:
             fail(f"{cid}: verdict는 PASS|FAIL|MANUAL: {r.get('verdict')}")
         check_shot(out_dir, cid, r["verdict"], r.get("screenshot"))
+        check_layout(cid, r["verdict"], by_id[cid].get("kind"), r, need_layout)
         got[cid] = r
 
     cases = []
     for c in planned:
         r = got.get(c["id"])
         cases.append({**c, "verdict": r["verdict"] if r else "NOT_RUN",
-                      "evidence": (r or {}).get("evidence"), "screenshot": (r or {}).get("screenshot")})
+                      "evidence": (r or {}).get("evidence"), "screenshot": (r or {}).get("screenshot"),
+                      "layout": (r or {}).get("layout"), "layout_na": (r or {}).get("layout_na")})
     for x in res.get("extra_cases") or []:
         for k in ("id", "todo_id", "scenario", "condition", "expect"):
             if not x.get(k):
@@ -179,6 +213,7 @@ def main(argv):
         if x.get("verdict") not in VERDICTS:
             fail(f"{x['id']}: verdict는 PASS|FAIL|MANUAL: {x.get('verdict')}")
         check_shot(out_dir, x["id"], x["verdict"], x.get("screenshot"))
+        check_layout(x["id"], x["verdict"], x["kind"], x, need_layout)
         cases.append({**x, "extra": True})
 
     counts = {v: sum(1 for c in cases if c["verdict"] == v) for v in ("PASS", "FAIL", "MANUAL", "NOT_RUN")}

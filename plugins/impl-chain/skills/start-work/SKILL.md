@@ -161,6 +161,12 @@ python3 ${CLAUDE_PLUGIN_ROOT}/scripts/apply-ui-decisions.py {type} {n}
 - 테스트를 통과시키는 방향으로 구현한다. todo·decisions에 없는 동작은 추가하지 않는다.
 - UI는 ui-spec의 **레이아웃 트리로 골격**(영역·Row/Column/Box·반복·`[조건]` 노드)을 먼저 만들고, **요소 표로 값**(컴포넌트·토큰·dp·문구 키·아이콘)을 채운다.
   다 옮긴 뒤 트리 노드와 요소 표 행(id)마다 구현 위치를 대조해 빠진 것이 없는지 확인한다.
+- **배치는 ui-spec의 `배치` 칸(의도)대로만 — Figma 숫자를 눈대중으로 옮기지 않는다.**
+  `center`면 정렬(`Alignment.Center`·`Arrangement.Center`·`centerHorizontally` 등)로, `padding {n}`이면 그 padding으로, `gap`·`fill`·`weight`도 그대로.
+  가운데 있는 요소를 `padding(start = 156.dp)`·`offset`처럼 **좌표에서 계산한 숫자로 가운데 "처럼" 보이게 만들지 않는다**. 거꾸로 여백으로 정해진 요소를 center로 바꾸지도 않는다.
+  - 배치가 `미확정 → layout:…`이면 decisions의 같은 key 답을 따른다. 답이 없으면 Step 0-1처럼 멈추고 묻는다.
+  - ui-spec에 배치가 없거나, ui-spec 숫자를 쓰려는데 **가운데인지 여백인지 조금이라도 애매하면** 추측하지 않고 Step 0-1처럼 AskUserQuestion으로 묻는다 — 후보는 `center` / `padding {n}`(또는 위 요소 기준 gap)로, 근거는 Figma 값(x·y·폭·부모 폭)과 비슷한 기존 화면의 처리 `파일:라인`, 그리고 넓은·좁은 기기에서 각 후보가 어떻게 보이는지.
+  - 코드에 쓰는 크기·간격 숫자는 전부 ui-spec 요소 표(또는 decisions)에 있는 값이어야 한다. 표에 없는 숫자가 필요하면 그것도 묻는다.
 - **문구는 프로필 `문구.mode`를 따른다** (체인·단독 공통).
   `rule`: 규칙 문서(`문구.rule`)대로만 — 거기서 금지한 하드코딩·파일 수정을 하지 않는다. `hardcode`: 원문을 글자 그대로 문자열로.
 - 다른 브랜치·stash의 비슷한 작업은 참고하지 않는다.

@@ -75,8 +75,28 @@ mock 스킬(`{프로필 화면 확인.mock_skill}` — 레포 `.claude/skills/` 
 ### 5. 대조
 기기 스크린샷과 Figma 스크린샷을 **나란히 보고**(둘 다 Read) 배치·요소 유무·아이콘을 비교하고,
 문구는 `ui` 출력의 텍스트로 ui-spec의 문구와 글자 단위로 대조한다.
-케이스마다: 문구(글자 단위) / 요소 유무 / 배치 구조(스크롤 영역·하단 고정) / 눈에 띄는 색상 차이.
-픽셀 단위 비교는 하지 않는다.
+케이스마다: 문구(글자 단위) / 요소 유무 / 배치 구조(스크롤 영역·하단 고정) / **레이아웃 위치(5-0)** / 눈에 띄는 색상 차이.
+픽셀 단위 이미지 비교(diff)는 하지 않는다 — 대신 요소 좌표를 재서 ui-spec의 배치와 맞춘다.
+
+### 5-0. 레이아웃 위치 (생략 불가 — "요소가 있다"로 PASS하지 않는다)
+ui-spec이 있는 화면이면 케이스마다 **ui-spec 레이아웃 트리·요소 표의 `배치`·`크기·간격`이 기기에서 그대로인지 잰다.**
+요소가 다 있어도 위치가 Figma와 다르면 FAIL이다.
+
+1. **배율**: `s = 기기 화면 폭(ui 좌표계) / Figma 프레임 폭` (프레임 폭 = `.impl-spec/{type}-{n}.figma/context/{nodeId}.md` 첫 줄 `frame: {폭}x{높이}`의 폭. 없으면 Figma `get_metadata`로 그 화면 노드의 width를 읽는다 — Figma 스크린샷 픽셀 폭은 export 배율이 섞여 있어 쓰지 않는다). Figma 값 n은 기기에서 `n × s`다. 허용 오차는 `2 × s` (Figma 2 단위).
+2. **좌표**: 요소의 사각형은 `{device_adapter} ui {id}`의 bounds에서 읽는다. ui 트리에 없는 요소(아이콘·이미지·접근성 정보 없는 뷰)는 스크린샷에서 재고 근거에 "스크린샷 측정"이라 적는다 — 스크린샷 픽셀 ÷ (스크린샷 폭 / ui 좌표계 폭)으로 ui 좌표로 바꾼다.
+3. **검사 항목** — 트리의 노드·요소 표 행마다 해당하는 것을 전부:
+   | ui-spec 배치 | 기기에서 재는 것 | 통과 조건 |
+   |-------------|----------------|----------|
+   | `center` / `centerH` / `centerV` | 요소 중심과 **부모** 중심의 차이 (부모 = 트리에서 바로 위 컨테이너, 화면이면 화면) | ≤ 오차 |
+   | `start`·`end`·`top`·`bottom` + `padding n` | 부모 가장자리와 요소 가장자리 거리 | `n × s` ± 오차 |
+   | `gap n` | 형제 사이 거리 | `n × s` ± 오차 |
+   | `fill` / `weight` | 요소 폭(높이)이 부모의 남는 공간을 채우는지 | 부모 안쪽 폭(− padding) ± 오차 |
+   | 고정 크기 (`h56`, `24` 등) | 요소 크기 | `n × s` ± 오차 |
+   | `[고정 하단]`·`[고정 상단]` | 스크롤 전후로 화면 가장자리와 거리가 같은지 (한 번 swipe해서 비교) | 같음 |
+   | 형제 순서·Row/Column 방향 | 위→아래, 왼→오른 순서 | Figma와 같음 |
+4. **Figma 스크린샷과 나란히** 놓고 상대 위치(같은 줄인지, 왼쪽 가장자리가 맞는지, 위아래 순서)도 눈으로 다시 본다. 3의 숫자와 눈으로 본 것이 다르면 숫자를 다시 잰다.
+5. 기기 폭이 Figma 프레임과 다르면 `center` 요소는 가운데에 **남아야** 하고 `padding` 요소는 가장자리에서 같은 거리에 남아야 한다 — 숫자 offset으로 가운데처럼 맞춘 구현은 여기서 드러난다. 위치가 맞는데 방식이 의심스러우면(예: 가운데인데 좌우 여백이 Figma 좌표 그대로 `n × s`) `observations`에 적는다.
+6. 결과는 케이스의 `layout`에 항목마다 남긴다 (5-1). **하나라도 `ok: false`면 그 케이스는 FAIL**이다. ui-spec이 없는 화면(회귀 케이스의 기존 화면 등)이면 `layout_na`에 사유를 적는다.
 
 ### 5-1. 결과 기록과 리포트 (생략 불가)
 케이스별 판정을 `{output_dir}/results.json`에 쓴다:
@@ -85,14 +105,17 @@ mock 스킬(`{프로필 화면 확인.mock_skill}` — 레포 `.claude/skills/` 
   "device": "{id} ({연결 기기 | 부팅한 기기 이름})", "build": "{프로필 빌드.install}", "commit": "{git rev-parse --short HEAD}",
   "entry": "화면에 들어간 방법 — 실제 흐름인지, mock·우회 진입인지를 사람이 알 수 있게 한두 문장",
   "mock_files": ["push한 mock 파일명"],
-  "results": [{"case_id": "V1", "verdict": "PASS", "evidence": "ui 텍스트 또는 관찰", "screenshot": "V1.png"}],
+  "results": [{"case_id": "V1", "verdict": "PASS", "evidence": "ui 텍스트 또는 관찰", "screenshot": "V1.png",
+               "layout": [{"element": "E12 empty_icon", "expect": "centerH (부모: 화면)", "actual": "중심 차이 0.5 (오차 2.2)", "ok": true},
+                          {"element": "E2 타이틀", "expect": "start padding 20 → 22.0", "actual": "21.8 (스크린샷 측정)", "ok": true}]}],
   "extra_cases": [{"id": "X1", "todo_id": "T2", "scenario": "…", "condition": "…", "kind": "regression", "expect": "…",
                    "verdict": "PASS", "evidence": "…", "screenshot": "X1.png"}],
   "not_verified": ["확인하지 못한 것 — 실서버 응답, 보지 않은 진입 경로·상태 등"],
   "observations": ["판정과 무관하지만 화면에서 눈에 띈 차이"]
 }
 ```
-- `verdict`는 `PASS` / `FAIL` / `MANUAL`. **PASS·FAIL은 그 화면의 스크린샷이 있어야 한다** (스크립트가 검사한다). 시도하지 못한 계획 케이스는 `results`에 넣지 않는다 — 리포트에 "확인 안 함"으로 실린다.
+- `verdict`는 `PASS` / `FAIL` / `MANUAL`. **PASS·FAIL은 그 화면의 스크린샷이 있어야 한다** (스크립트가 검사한다).
+- `layout`: 5-0의 측정 결과 (`element`·`expect`·`actual`·`ok`). state_file에 `ui_specs`가 있으면 **대상(target) 케이스의 PASS는 `layout`(비어 있지 않음) 또는 `layout_na`(사유)가 있어야 하고**, `ok: false`가 하나라도 있으면 PASS가 될 수 없다 (스크립트가 검사한다). extra_cases도 같다. 시도하지 못한 계획 케이스는 `results`에 넣지 않는다 — 리포트에 "확인 안 함"으로 실린다.
 - `not_verified`를 비우지 않는다. mock으로 만든 화면이면 "실서버가 그 값을 내려주는지"는 항상 확인하지 못한 것이다.
 
 그다음 리포트를 만든다:
@@ -114,16 +137,17 @@ push한 mock 파일을 전부 삭제하고(파일이 아니라 메모리에 넣�
 리포트: {output_dir}/report.html — {visual-report.py의 REPORT 줄: PASS a / FAIL b / MANUAL c / NOT_RUN d}
 진입: {results.json의 entry}
 
-| 케이스 | todo | 화면·상태 — 조건 | 구분 | 판정 PASS/FAIL/MANUAL/NOT_RUN | 근거 (ui 텍스트 또는 관찰) | 스크린샷 |
-|--------|------|-----------------|------|------------------------------|-----------------------------|---------|
-| V1 | T2 | 좌석 목록 — PREMIUM | 대상 | PASS | text="프리미엄" | V1.png |
-| V2 | T2 | 좌석 목록 — STANDARD | 회귀 | NOT_RUN | mock으로 STANDARD를 만들지 못함 | — |
+| 케이스 | todo | 화면·상태 — 조건 | 구분 | 판정 PASS/FAIL/MANUAL/NOT_RUN | 근거 (ui 텍스트 또는 관찰) | 레이아웃 (맞음/측정) | 스크린샷 |
+|--------|------|-----------------|------|------------------------------|-----------------------------|--------------------|---------|
+| V1 | T2 | 좌석 목록 — PREMIUM | 대상 | PASS | text="프리미엄" | 8/8 | V1.png |
+| V2 | T2 | 좌석 목록 — STANDARD | 회귀 | NOT_RUN | mock으로 STANDARD를 만들지 못함 | — | — |
 
 ### 확인하지 못한 것
 1. {not_verified 그대로 — 비우지 않는다}
 
 ### FAIL 상세
 없음 | 1. T2/STANDARD — 기대 "뱃지 없음", 실제 "프리미엄" 표시
+     2. V1 레이아웃 — E12 empty_icon 기대 centerH, 실제 중심이 왼쪽으로 18 치우침 (padding 숫자로 맞춘 것으로 보임)
 
 ### MANUAL (사람이 확인 필요)
 없음 | 1. T3 — 진입 경로: 홈 → 예약 → 좌석 / mock: seat.v1.SeatService__ListSeats.json
@@ -138,4 +162,5 @@ mock 삭제: {파일 목록 또는 "push한 mock 없음"}
 - 자격 증명·결제 정보 입력 금지
 - 종료 시 push한 mock 파일을 반드시 삭제
 - 계획 케이스를 임의로 빼지 않는다. 스크린샷 없는 PASS를 보고하지 않는다
+- 요소 유무만 보고 PASS하지 않는다 — ui-spec이 있는 화면은 레이아웃 위치(5-0)를 재서 맞아야 PASS
 - `SKIPPED`는 0-0·0·1 단계의 조건(모드, 기기 어댑터 없음, `ensure` exit 3·4·5, 설치 실패)에서만 낸다 — 플랫폼 도구를 직접 쳐 보고 판단하지 않는다
