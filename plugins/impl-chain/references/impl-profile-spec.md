@@ -1,6 +1,6 @@
 # impl-chain 프로필 규격
 
-체인(`impl-spec` / `analyze-spec` / `analyze-bts` → `start-work` → `create-pr`, 에이전트 7개, `scripts/`의 상태 스크립트)은
+체인(`impl-spec` / `analyze-spec` → `start-work` → `create-pr`, 에이전트 8개, `scripts/`의 상태 스크립트)은
 **레포 고유 값을 갖지 않는다.** 레포마다 다른 것은 전부 여기 둔다:
 
 ```
@@ -17,7 +17,7 @@ GitHub 이슈를 쓰면 이슈 어댑터는 공용 스크립트를 그대로 쓰
 
 ## 전제
 
-- 이슈·PR은 **GitHub + `gh` CLI**를 쓴다 (create-pr, 리뷰어의 원문 조회). 이슈 트래커가 다르면 spec/bts 어댑터가 계약 형식으로 변환하고, create-pr은 수정이 필요하다.
+- 이슈·PR은 **GitHub + `gh` CLI**를 쓴다 (create-pr, 리뷰어의 원문 조회). 이슈 트래커가 다르면 spec 어댑터가 계약 형식으로 변환하고, create-pr은 수정이 필요하다.
 - 도구: `git`, `gh`(로그인), `jq`, `python3`, `bash`(3.2+ — macOS 기본 셸 가능). 화면 확인(`device`·`device-mock`)은 기기 어댑터가 쓰는 도구 — `builtin:android-device`면 Android SDK(adb, emulator), `builtin:ios-device`면 Xcode(`xcrun simctl`) + [AXe](https://github.com/cameroncooke/AXe)(`brew install cameroncooke/axe/axe`), `builtin:ios-real-device`면 libimobiledevice(`brew install libimobiledevice`) + 기기에서 도는 [WebDriverAgent](https://github.com/appium/WebDriverAgent).
 - 공용 기기 어댑터는 Android(`builtin:android-device` — 기본값), iOS 시뮬레이터(`builtin:ios-device`), iOS 실기기(`builtin:ios-real-device`)가 있다. 그 외 플랫폼은 레포 전용 기기 어댑터를 `화면 확인.device_adapter`에 적는다. 에셋 export 예시는 Android 기준이다 (`asset_export`의 vector drawable) — 다른 플랫폼은 자기 명령을 적는다.
 
@@ -26,10 +26,10 @@ GitHub 이슈를 쓰면 이슈 어댑터는 공용 스크립트를 그대로 쓰
 `## {섹션}` 아래 `- {키}: {값}` 한 줄씩. 체인 문서는 **"프로필 `섹션.키`"** 로 가리킨다 (예: 프로필 `빌드.compile`).
 값 안의 `{module}`, `{variant}`, `{name}`, `{n}`, `{slug}`는 쓰는 쪽이 실행 시 채운다. `{variant}`는 `빌드.module_variants`에서 그 모듈에 해당하는 값이다.
 
-## 프로필 게이트 (체인 시작 시 — analyze-* Step 0-0, 단독 start-work Step 0-0)
+## 프로필 게이트 (체인 시작 시 — analyze-spec Step 0-0, 단독 start-work Step 0-0)
 
 ```bash
-${CLAUDE_PLUGIN_ROOT}/scripts/impl-profile.sh check --for {analyze-spec | analyze-bts | start-work}
+${CLAUDE_PLUGIN_ROOT}/scripts/impl-profile.sh check --for {analyze-spec | start-work}
 ```
 exit 0이면 통과. 아니면 stderr의 문제 목록을 그대로 보여주고 **중단** (프로필이 없으면 `/impl-setup` 안내가 나온다).
 스크립트가 검사하는 것: 아래 표의 필수 키·조건부 필수 키, 모드 값 범위, 모드가 가리키는 파일·mock 스킬 존재, 스킬별 이슈 어댑터(해석·실행 가능)와 그 키, `.impl-spec/` gitignore.
@@ -50,15 +50,11 @@ exit 0이면 통과. 아니면 stderr의 문제 목록을 그대로 보여주고
 | 이슈 | `spec_adapter` | analyze-spec 사용 시 | spec 어댑터. GitHub이면 `builtin:gh-spec-issue` (체인 공용), 아니면 레포 전용 어댑터의 레포 루트 기준 경로 |
 | | `spec_repo` | 공용 spec 어댑터면 | 기획서 이슈가 있는 레포 (`owner/name`) — 기획서 본문 파일 링크 조회에도 쓴다 |
 | | `spec_link_regex` | 공용 spec 어댑터면 | 앱 이슈 본문·댓글에서 기획 이슈 번호를 뽑는 정규식(python `re`, 그룹 1 = 번호). 예: `planning/issues/([0-9]+)` |
-| | `bts_adapter` | analyze-bts 사용 시 | bts 어댑터. GitHub이면 `builtin:gh-bts-issue` (체인 공용), 아니면 레포 전용 어댑터 경로 |
-| | `bts_repo` | 공용 bts 어댑터면 | BTS 레포 `owner/name` |
-| | `bts_exclude_labels` | | 쉼표 구분. 이 라벨이 붙은 이슈는 목록에서 제외. 없으면 라벨 필터 없음 |
-| | `bts_project_status` | | 쉼표 구분. GitHub Projects 상태가 이 중 하나인 이슈만. 없으면 필터 없음 (있으면 gh `read:project` 권한 필요) |
 | | `string_table_hint` | | 기획자가 문구 키 표를 올리는 방식 (예: 댓글의 `키 \| ko` 표) |
 | 서버 계약 | `mode` | ✅ | `proto-repo` \| `none` |
 | | `repo` | mode=proto-repo | 서버 계약(proto) 레포 `owner/name` |
 | git | `standalone_base_candidates` | ✅ | 상태 파일 없는 단독 start-work/create-pr에서 base 선택지 |
-| | `branch_format` | ✅ | spec / bts 브랜치명 형식. `{접두사}/{이름}` 꼴이어야 한다 (`impl-state.sh`는 이 꼴만 검사) |
+| | `branch_format` | ✅ | 브랜치명 형식. `{접두사}/{이름}` 꼴이어야 한다 (`impl-state.sh`는 이 꼴만 검사) |
 | | `commit_format` | ✅ | 커밋 메시지 형식 |
 | | `remote` | | push·PR에 쓰는 원격 이름. 없으면 `origin` (포크 구조로 `upstream` 등을 쓰는 레포) |
 | 빌드 | `compile` | ✅ | 컴파일 명령 템플릿 (`{module}`) |
@@ -135,13 +131,6 @@ exit 0이면 통과. 아니면 stderr의 문제 목록을 그대로 보여주고
 - 기획 이슈 후보가 0개이거나 2개 이상이고 `spec_n`이 없으면 `spec`은 `{}`, `comments`는 `[]` (호출자가 사용자에게 묻고 `spec_n`으로 다시 호출).
 - 기획서가 앱 이슈 자체에 있는 레포라면 `spec`에 앱 이슈를 그대로 넣고 `spec_candidates`는 `[]`로 둔다.
 - 댓글은 페이지네이션해서 전부.
-
-### bts 어댑터 (`이슈.bts_adapter`)
-
-| 호출 | 출력 |
-|------|------|
-| `{bts_adapter} list` | JSON 배열 `[{number, title, updatedAt, ...}]` — 작업 가능한 내 이슈, 최근순 |
-| `{bts_adapter} fetch <n>` | JSON `{issue: {number, title, body, state, labels, url, ...}, comments: [{author, created_at, body}]}` |
 
 ### 기기 어댑터 (`화면 확인.device_adapter`)
 

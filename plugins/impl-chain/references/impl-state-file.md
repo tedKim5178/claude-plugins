@@ -1,6 +1,6 @@
 # impl-spec 상태 파일 규격
 
-`analyze-spec`/`analyze-bts` → `start-work` → `create-pr` 체인이 컨텍스트를 주고받는 **단일 진실 공급원**.
+`analyze-spec` → `start-work` → `create-pr` 체인이 컨텍스트를 주고받는 **단일 진실 공급원**.
 
 리포트 본문을 파싱하거나 "대화 맥락에서 추론"하지 않는다. 각 단계는 이 파일만 읽고 쓴다.
 
@@ -26,13 +26,12 @@ $S check-branch spec 4895          # 현재 브랜치 == .branch 확인
 ## 경로와 키
 
 ```
-.impl-spec/{type}-{number}.json             상태 파일      (type = spec | bts)
+.impl-spec/{type}-{number}.json             상태 파일      (type = spec)
 .impl-spec/{type}-{number}.research.*.md    리서치 원본 요약 (researcher 에이전트가 기록)
 .impl-spec/{type}-{number}.visual/          visual-verifier 스크린샷
 .impl-spec/{type}-{number}.figma/           figma-collector(index.md, screens/) + figma-ui-spec(ui-spec/, vars/, context/, assets/)
 ```
 
-- BTS #4895와 안드로이드 #4895는 다른 레포라 **type으로 분리**한다.
 - `.gitignore` 대상. 커밋하지 않는다.
 
 ## 상태 파일 선택 규칙 (모든 단계 공통)
@@ -111,18 +110,18 @@ $S check-branch spec 4895          # 현재 브랜치 == .branch 확인
 
 | 필드 | 쓰는 단계 | 비고 |
 |------|----------|------|
-| `issue_*`, `spec_url`, `milestone` | analyze-* | BTS면 `spec_url`/`milestone`은 `null` 가능 |
-| `base_branch`, `branch` | analyze-* | `base_branch` = analyze-*를 **실행한 로컬 브랜치** (`${CLAUDE_PLUGIN_ROOT}/scripts/detect-base.sh`, 고르거나 묻지 않음, origin에 없어도 됨 — 작업 브랜치는 그 로컬 tip에서 따고 리뷰는 `git merge-base {base_branch} HEAD` 기준. origin은 create-pr `check-pr-ready.sh`에서만 확인 — 체인 규칙. 상태 파일 없는 단독 start-work/create-pr은 각자 묻는다). `branch`는 analyze-*가 제안. 이후 단계는 읽기만 |
-| `research_files` | analyze-* | researcher 에이전트가 쓴 파일. reviewer가 원본 대조에 쓴다 |
-| `todo_items` | analyze-* (생성), start-work (`status`) | 아래 todo 규칙 |
-| `decisions` / `open_questions` | analyze-* | `init` 시점에 `open_questions`는 **반드시 빈 배열**. decision이 특정 todo에 영향을 주면 `todo_ids`. 선택: `evidence`(근거 — figma-ui-spec auto는 필수), `key`(figma-ui-spec 판정 키), `ui_spec`(나온 그룹의 ui-spec 파일 — 그룹 재실행 시 이 값으로 지운다) |
-| `figma` | analyze-* | `figma-collector` 결과. `status`: `ok`(화면 확정) / `none`(링크 없음). **BLOCKED로는 기록할 수 없다** — 분석을 멈추고 사용자가 해결 |
-| `ui_specs` | analyze-* Step 4-1 | `[{group, screens, file}]` — figma-ui-spec 결과. `figma.status=ok`이고 visual todo가 있으면 visual todo의 모든 화면을 덮어야 한다 (init 검사). start-work·리뷰어·visual-verifier가 ui-spec을 여기서 찾는다 |
-| `visual_cases` | analyze-* Step 4-2 | 화면 확인 계획 — 아래 visual_cases 규칙. visual-verifier가 그대로 실행하고 `visual-report.py`가 리포트로 만든다 |
-| `decisions[].apply` | analyze-* (생성), start-work Step 2-1 (반영) | 레포에 반영할 UI 결정 (컴포넌트·토큰 대응표 행, 에셋). 아래 apply 형식 |
-| `proto_dependency` | analyze-* | 서버 작업 없으면 `{ "required": false, "status": "n/a" }`. `status`: `n/a` / `available` / `missing`(보류·부분 진행) / `temp-local`(서버 proto PR 원문에서 필요한 부분만 임시 반영 — 로컬 테스트 전용, start-work는 T0에 한해 `.proto` 수정 허용, create-pr은 PR 거부) |
-| `size` | analyze-* | `small` / `large` — start-work의 task 분할 여부 |
-| `compile_task`, `test_task` | analyze-* | 프로필 `빌드.compile`/`빌드.test`의 `{module}`·`{variant}`(프로필 `빌드.module_variants`)를 채운 **실행할 전체 명령**. 모르면 `null` → start-work가 채움 |
+| `issue_*`, `spec_url`, `milestone` | analyze-spec | |
+| `base_branch`, `branch` | analyze-spec | `base_branch` = analyze-spec를 **실행한 로컬 브랜치** (`${CLAUDE_PLUGIN_ROOT}/scripts/detect-base.sh`, 고르거나 묻지 않음, origin에 없어도 됨 — 작업 브랜치는 그 로컬 tip에서 따고 리뷰는 `git merge-base {base_branch} HEAD` 기준. origin은 create-pr `check-pr-ready.sh`에서만 확인 — 체인 규칙. 상태 파일 없는 단독 start-work/create-pr은 각자 묻는다). `branch`는 analyze-spec가 제안. 이후 단계는 읽기만 |
+| `research_files` | analyze-spec | researcher 에이전트가 쓴 파일. reviewer가 원본 대조에 쓴다 |
+| `todo_items` | analyze-spec (생성), start-work (`status`) | 아래 todo 규칙 |
+| `decisions` / `open_questions` | analyze-spec | `init` 시점에 `open_questions`는 **반드시 빈 배열**. decision이 특정 todo에 영향을 주면 `todo_ids`. 선택: `evidence`(근거 — figma-ui-spec auto는 필수), `key`(figma-ui-spec 판정 키), `ui_spec`(나온 그룹의 ui-spec 파일 — 그룹 재실행 시 이 값으로 지운다) |
+| `figma` | analyze-spec | `figma-collector` 결과. `status`: `ok`(화면 확정) / `none`(링크 없음). **BLOCKED로는 기록할 수 없다** — 분석을 멈추고 사용자가 해결 |
+| `ui_specs` | analyze-spec Step 4-1 | `[{group, screens, file}]` — figma-ui-spec 결과. `figma.status=ok`이고 visual todo가 있으면 visual todo의 모든 화면을 덮어야 한다 (init 검사). start-work·리뷰어·visual-verifier가 ui-spec을 여기서 찾는다 |
+| `visual_cases` | analyze-spec Step 4-2 | 화면 확인 계획 — 아래 visual_cases 규칙. visual-verifier가 그대로 실행하고 `visual-report.py`가 리포트로 만든다 |
+| `decisions[].apply` | analyze-spec (생성), start-work Step 2-1 (반영) | 레포에 반영할 UI 결정 (컴포넌트·토큰 대응표 행, 에셋). 아래 apply 형식 |
+| `proto_dependency` | analyze-spec | 서버 작업 없으면 `{ "required": false, "status": "n/a" }`. `status`: `n/a` / `available` / `missing`(보류·부분 진행) / `temp-local`(서버 proto PR 원문에서 필요한 부분만 임시 반영 — 로컬 테스트 전용, start-work는 T0에 한해 `.proto` 수정 허용, create-pr은 PR 거부) |
+| `size` | analyze-spec | `small` / `large` — start-work의 task 분할 여부 |
+| `compile_task`, `test_task` | analyze-spec | 프로필 `빌드.compile`/`빌드.test`의 `{module}`·`{variant}`(프로필 `빌드.module_variants`)를 채운 **실행할 전체 명령**. 모르면 `null` → start-work가 채움 |
 | `tasks` | start-work (large만) | `[{id, todo_ids, files, done}]` — task의 compile·test 통과 확인 직후 `done: true` (task별 커밋 없음 — 커밋은 전체에 하나). 재개 시 done인 task는 건너뛴다 |
 | `commits`, `verification` | start-work | 아래 verification 형식 |
 | `previous_branch` | start-work | 브랜치 전환 전 메인 워크스페이스 브랜치 (돌아갈 곳 안내용) |

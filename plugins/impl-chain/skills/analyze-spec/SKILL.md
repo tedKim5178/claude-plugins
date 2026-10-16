@@ -123,7 +123,7 @@ jq '{title: .issue.title, spec: .spec.number, spec_title: .spec.title, candidate
 
 | 에이전트 | 전달 파라미터 |
 |---------|--------------|
-| `spec-researcher` | `issue_json_file: .impl-spec/spec-{n}.issue.json`, `issue_type: spec`, `output_file: .impl-spec/spec-{n}.research.spec.md` |
+| `spec-researcher` | `issue_json_file: .impl-spec/spec-{n}.issue.json`, `output_file: .impl-spec/spec-{n}.research.spec.md` |
 | `figma-collector` | `issue_json_file: .impl-spec/spec-{n}.issue.json`, `output_dir: .impl-spec/spec-{n}.figma/` |
 
 **Figma가 BLOCKED면 여기서 멈춘다.** collector가 준 사유와 해결 방법(플러그인 켜기 / `/mcp` 로그인 / 파일 권한 요청)을

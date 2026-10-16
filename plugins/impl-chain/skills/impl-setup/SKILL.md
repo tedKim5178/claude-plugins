@@ -34,7 +34,7 @@ invocable: true
 
 ```bash
 for t in git gh jq python3; do command -v $t > /dev/null || echo "없음: $t"; done
-gh auth status 2>&1 | head -5                      # 로그인·scope (read:project는 BTS 상태 필터를 쓸 때만)
+gh auth status 2>&1 | head -5                      # 로그인·scope
 git remote -v                                       # 원격이 둘 이상이면 Step 3에서 PR용 원격(git.remote)을 묻는다
 git check-ignore -q .impl-spec/x && echo ".impl-spec ignored" || echo ".impl-spec NOT ignored"
 ```
@@ -61,7 +61,7 @@ Step 3에서 **현재 값과 다른 키만** "현재 → 제안 (근거)"로 묻
 - **빌드**: `{variant}`를 쓰면 `module_variants`가 모든 모듈 유형을 덮는지. 안 쓰면 "모듈 유형별로 태스크 이름이 같다"는 근거가 있는지.
 - **토큰 시드**: 시드 행의 근거가 Figma 이름 연결(주석·명명 규칙)이고 커버리지가 적혀 있는지. 이름 유사도뿐이면 시드를 버리고 빈 표로.
   `source`가 시맨틱 층 파일인지 — 팔레트 파일이 섞여 있으면 빼라고 되돌린다.
-- **정책 키**(문구 `rule` 내용, 브랜치·커밋 형식, BTS 필터, 토큰 필수 여부)가 관찰만으로 확정돼 있으면 질문으로 돌린다.
+- **정책 키**(문구 `rule` 내용, 브랜치·커밋 형식, 토큰 필수 여부)가 관찰만으로 확정돼 있으면 질문으로 돌린다.
 
 ### 3. 질문
 
@@ -69,7 +69,6 @@ AskUserQuestion으로 묻는다 (한 번에 최대 4개, 후보를 선택지로,
 반드시 묻는 것 (근거가 아무리 강해도):
 - **문구 정책**: 새 문구를 어디에 어떤 키로 넣는지 (`hardcode`로 둘지 포함). 관찰된 임시 파일 관례가 있으면 첫 선택지로.
 - **브랜치·커밋 형식**: 이력의 관례가 둘 이상이면 분포를 보여주고.
-- **BTS 필터**: 제외 라벨·프로젝트 상태 (gh `read:project` scope가 없으면 상태 필터를 쓰면 목록 조회가 실패한다는 점을 함께).
 - **기획서 위치**: 링크 레포 후보가 둘 이상이거나, 기획서가 앱 이슈 자체에 있는 경우.
 - **새 에셋 위치** (`asset_target`): drawable·asset 폴더가 둘 이상 모듈에 있으면 어느 모듈에 둘지 (분포를 보여주고)
 - **화면 확인** (`화면 확인.mode` + 기기 어댑터): 제안서의 "화면 확인 상황" 절을 보고 묻는다.
@@ -92,7 +91,7 @@ AskUserQuestion으로 묻는다 (한 번에 최대 4개, 후보를 선택지로,
 | 에셋 `asset_export` | 프로필 키만 (파일 없음) | 샘플 SVG 1개(`<svg … viewBox="0 0 24 24"><path d="M3 3h18v18H3z"/></svg>`)를 명령으로 변환해 결과가 프로젝트 형식인지 (Android: `<vector` 로 시작하는 xml) + `asset_lookup`을 레포에 있는 아이콘 이름 1개로 실행해 결과가 나오는지 |
 | 문구 `rule` | `{out}/adapters/string-resources.md` — 규칙·금지·확인 세 절 (계약) | "확인" 절 명령을 실제로 한 번 실행해 오류 없이 도는지 |
 
-이슈 어댑터는 GitHub이면 공용 — 만들지 않고 프로필에 `spec_adapter: builtin:gh-spec-issue`, `bts_adapter: builtin:gh-bts-issue`로 적는다 (경로를 적지 않는다 — 체인이 플러그인이면 경로가 레포 밖이다).
+이슈 어댑터는 GitHub이면 공용 — 만들지 않고 프로필에 `spec_adapter: builtin:gh-spec-issue`로 적는다 (경로를 적지 않는다 — 체인이 플러그인이면 경로가 레포 밖이다).
 GitHub이 아니면 계약에 맞춘 어댑터를 `{out}/adapters/`에 만들고 `list`·`fetch`를 실제 이슈 1건으로 실행해 확인한다.
 
 ### 4-1. 기기 어댑터 — 고르고, 없으면 만들고, 반드시 검사한다 (`화면 확인.mode`가 `none`이 아닐 때)
@@ -141,10 +140,8 @@ ${CLAUDE_PLUGIN_ROOT}/scripts/device-adapter-check.sh --out .impl-spec/setup/dev
 3. 검증 — 하나라도 실패하면 고치고 다시. 3회 실패하면 보고 후 중단:
    ```bash
    ${CLAUDE_PLUGIN_ROOT}/scripts/impl-profile.sh check --for analyze-spec    # spec 어댑터를 쓰는 레포
-   ${CLAUDE_PLUGIN_ROOT}/scripts/impl-profile.sh check --for analyze-bts     # bts 어댑터를 쓰는 레포
    ${CLAUDE_PLUGIN_ROOT}/scripts/impl-profile.sh check --for start-work
    A=$(${CLAUDE_PLUGIN_ROOT}/scripts/impl-profile.sh adapter 이슈.spec_adapter) && $A milestones && $A list {최근 마일스톤}   # 출력 형식이 계약대로인지
-   B=$(${CLAUDE_PLUGIN_ROOT}/scripts/impl-profile.sh adapter 이슈.bts_adapter) && $B list | jq length                        # bts를 쓰면 (read:project 오류면 bts_project_status를 빼거나 gh auth refresh -s read:project)
    ```
    - 기기 어댑터: Step 4-1의 검사 결과(`RESULT`)가 있어야 한다 — `화면 확인.mode`가 `none`이 아닌데 검사를 돌리지 않았으면 여기서 돌린다.
    - 빌드: 모듈 유형마다 compile·test 명령의 태스크가 **존재**하는지 — 실제 빌드 없이 확인 (Gradle: `-m` dry-run, Xcode: `-list`·`-showBuildSettings`).

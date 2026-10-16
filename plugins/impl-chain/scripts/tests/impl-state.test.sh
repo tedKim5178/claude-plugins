@@ -73,6 +73,8 @@ expect_init "manual todo에 단 visual_cases" 0 '.todo_items[1].verify = "manual
 expect_init "proto temp-local" 0 '.proto_dependency = {required:true, status:"temp-local", note:"example-proto#1 원문 임시 반영"}'
 
 echo "init — 실패"
+$S path bts 1 > /dev/null 2> "$T/err"; [ $? = 1 ] && grep -q "type은 spec" "$T/err" && ok "type bts는 거부 (BTS 지원 삭제)" || bad "type bts 거부: $(cat "$T/err")"
+$S get bts 1 > /dev/null 2>&1; [ $? = 1 ] && ok "get도 잘못된 type이면 exit 1 (파일 없음 2가 아님)" || bad "get bts exit"
 expect_init "visual 화면이 ui_specs에 없음" 1 '.ui_specs[0].screens = ["S1"]' "S2"
 expect_init "ui_specs 없음" 1 'del(.ui_specs)' "ui_specs"
 expect_init "ui_specs 파일 없음" 1 ".ui_specs[0].file = \"$D/figma/ui-spec/none.md\"" "none.md"

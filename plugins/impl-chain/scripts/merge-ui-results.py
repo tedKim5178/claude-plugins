@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""figma-ui-spec 결과 JSON을 analyze draft에 병합한다 (analyze-spec / analyze-bts Step 4-1).
+"""figma-ui-spec 결과 JSON을 analyze draft에 병합한다 (analyze-spec Step 4-1).
 
 Usage: merge-ui-results.py <draft.json> <result.json>...
 

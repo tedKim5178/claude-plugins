@@ -3,10 +3,10 @@
 #
 # Usage:
 #   impl-profile.sh get <섹션>.<키>                                    값 출력. 없으면 exit 2
-#   impl-profile.sh check [--for analyze-spec|analyze-bts|start-work]  게이트. 문제는 stderr, 실패 exit 1
-#   impl-profile.sh adapter <이슈.spec_adapter|이슈.bts_adapter|화면 확인.device_adapter>   실행할 어댑터 절대 경로 출력
-#       값 `builtin:gh-spec-issue` / `builtin:gh-bts-issue` / `builtin:android-device` / `builtin:ios-device` / `builtin:ios-real-device` → 이 스크립트와 같은 폴더의 공용 어댑터
-#       (예전 값 `.claude/scripts/gh-*.sh`도 builtin으로 본다) / 그 외 → 레포 루트 기준 경로 (레포 전용 어댑터)
+#   impl-profile.sh check [--for analyze-spec|start-work]  게이트. 문제는 stderr, 실패 exit 1
+#   impl-profile.sh adapter <이슈.spec_adapter|화면 확인.device_adapter>   실행할 어댑터 절대 경로 출력
+#       값 `builtin:gh-spec-issue` / `builtin:android-device` / `builtin:ios-device` / `builtin:ios-real-device` → 이 스크립트와 같은 폴더의 공용 어댑터
+#       (예전 값 `.claude/scripts/gh-spec-issue.sh`도 builtin으로 본다) / 그 외 → 레포 루트 기준 경로 (레포 전용 어댑터)
 #       `화면 확인.device_adapter`는 키가 없으면 `builtin:android-device`로 본다
 #
 # 프로필 경로: $IMPL_PROFILE (impl-setup 검증용) → 없으면 {repo}/.claude/impl-chain/profile.md
@@ -19,7 +19,7 @@ PROFILE="${IMPL_PROFILE:-$ROOT/.claude/impl-chain/profile.md}"
 HERE="$(cd "$(dirname "$0")" && pwd)"
 
 # 공용 어댑터 — builtin:{이름} → $HERE/{이름}.sh. 이슈 어댑터를 쓰면 그 어댑터가 읽는 키도 필수가 된다
-BUILTIN_ADAPTERS="gh-spec-issue gh-bts-issue android-device ios-device ios-real-device"
+BUILTIN_ADAPTERS="gh-spec-issue android-device ios-device ios-real-device"
 # 기기 어댑터 키 — 없으면 기본값 (기기 어댑터가 생기기 전에 쓴 프로필이 그대로 돌도록)
 DEVICE_ADAPTER_KEY="화면 확인.device_adapter"
 DEVICE_ADAPTER_DEFAULT="builtin:android-device"
@@ -62,17 +62,17 @@ resolve_adapter() {
     echo "$ROOT/$v"
   fi
 }
-# 값 → builtin 이름 (아니면 빈 문자열). 예전 레포 경로 값 .claude/scripts/gh-*.sh 도 builtin으로 본다
+# 값 → builtin 이름 (아니면 빈 문자열). 예전 레포 경로 값 .claude/scripts/gh-spec-issue.sh 도 builtin으로 본다
 builtin_name() {
   case "$1" in
     builtin:*) echo "${1#builtin:}" ;;
-    .claude/scripts/gh-spec-issue.sh|.claude/scripts/gh-bts-issue.sh) basename "$1" .sh ;;
+    .claude/scripts/gh-spec-issue.sh) basename "$1" .sh ;;
     *) echo "" ;;
   esac
 }
 
 cmd_adapter() {
-  [ $# -eq 1 ] || die "usage: impl-profile.sh adapter <이슈.spec_adapter|이슈.bts_adapter|화면 확인.device_adapter>"
+  [ $# -eq 1 ] || die "usage: impl-profile.sh adapter <이슈.spec_adapter|화면 확인.device_adapter>"
   [ -f "$PROFILE" ] || die "프로필 없음: $PROFILE"
   local p; p=$(resolve_adapter "$1"); case $? in 0) ;; 2) echo "ERROR: 키 없음: $1" >&2; exit 2 ;; *) exit 1 ;; esac
   [ -x "$p" ] || die "$1 어댑터가 없거나 실행할 수 없음: $p"
@@ -113,7 +113,6 @@ cmd_check() {
     [ -x "$p" ] || { problems+=("$1 가 가리키는 어댑터가 없거나 실행 불가: $v"); return; }
     case "$(builtin_name "$v")" in
       gh-spec-issue) need "이슈.spec_repo"; need "이슈.spec_link_regex" ;;
-      gh-bts-issue)  need "이슈.bts_repo" ;;
     esac
   }
 
@@ -182,9 +181,8 @@ cmd_check() {
   # 스킬별
   case "$target" in
     analyze-spec) needadapter "이슈.spec_adapter" ;;
-    analyze-bts)  needadapter "이슈.bts_adapter" ;;
     ""|start-work) ;;
-    *) die "알 수 없는 --for 값: $target (analyze-spec | analyze-bts | start-work)" ;;
+    *) die "알 수 없는 --for 값: $target (analyze-spec | start-work)" ;;
   esac
 
   if [ ${#problems[@]} -gt 0 ]; then
@@ -199,5 +197,5 @@ case "${1:-}" in
   get)     shift; cmd_get "$@" ;;
   check)   shift; cmd_check "$@" ;;
   adapter) shift; cmd_adapter "$@" ;;
-  *)       die "usage: impl-profile.sh get <섹션>.<키> | check [--for analyze-spec|analyze-bts|start-work] | adapter <키>" ;;
+  *)       die "usage: impl-profile.sh get <섹션>.<키> | check [--for analyze-spec|start-work] | adapter <키>" ;;
 esac

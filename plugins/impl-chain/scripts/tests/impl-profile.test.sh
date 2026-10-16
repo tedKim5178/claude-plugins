@@ -32,7 +32,6 @@ expect_exit "없는 섹션 exit 2" 2 $P get 없음.mode
 
 echo "adapter"
 [ "$($P adapter 이슈.spec_adapter)" = "$SCRIPTS/gh-spec-issue.sh" ] && ok "builtin:gh-spec-issue → 공용 어댑터" || bad "spec adapter=$($P adapter 이슈.spec_adapter)"
-[ "$($P adapter 이슈.bts_adapter)" = "$SCRIPTS/gh-bts-issue.sh" ] && ok "builtin:gh-bts-issue → 공용 어댑터" || bad "bts adapter"
 F=$(variant legacy-adapter <<< 's#^- spec_adapter: .*#- spec_adapter: .claude/scripts/gh-spec-issue.sh#')
 [ "$(IMPL_PROFILE="$F" $P adapter 이슈.spec_adapter)" = "$SCRIPTS/gh-spec-issue.sh" ] && ok "예전 레포 경로 값도 builtin으로" || bad "legacy"
 mkdir -p tools && printf '#!/bin/bash\n' > tools/my-adapter.sh && chmod +x tools/my-adapter.sh
@@ -44,7 +43,7 @@ expect_exit "모르는 builtin은 exit 1" 1 env IMPL_PROFILE="$F" $P adapter 이
 echo "check — fixture 레포"
 expect_exit "기본 통과" 0 $P check
 expect_exit "analyze-spec 통과" 0 $P check --for analyze-spec
-expect_exit "analyze-bts 통과" 0 $P check --for analyze-bts
+expect_exit "analyze-bts는 없는 대상 (삭제됨)" 1 $P check --for analyze-bts
 expect_exit "start-work 통과" 0 $P check --for start-work
 
 echo "check — 실패해야 하는 변형"
@@ -70,8 +69,10 @@ expect_exit "proto-repo인데 repo 없음" 1 env IMPL_PROFILE="$F" $P check
 F=$(variant no-spec-regex <<< '/^- spec_link_regex:/d')
 expect_exit "builtin spec 어댑터인데 spec_link_regex 없음 (analyze-spec)" 1 env IMPL_PROFILE="$F" $P check --for analyze-spec
 expect_exit "같은 변형이라도 start-work는 통과" 0 env IMPL_PROFILE="$F" $P check --for start-work
-F=$(variant no-bts-repo <<< '/^- bts_repo:/d')
-expect_exit "builtin bts 어댑터인데 bts_repo 없음 (analyze-bts)" 1 env IMPL_PROFILE="$F" $P check --for analyze-bts
+F=$(printf '/^- spec_adapter:/a\\\n- bts_adapter: builtin:gh-bts-issue\n' | variant old-bts-keys)   # bash 3.2: $( ) 안 heredoc 금지
+grep -q "^- bts_adapter: builtin:gh-bts-issue$" "$F" && ok "변형 프로필에 예전 bts 키" || bad "변형 프로필 생성"
+expect_exit "예전 프로필의 bts_adapter 키는 무시하고 통과" 0 env IMPL_PROFILE="$F" $P check --for analyze-spec
+expect_exit "builtin:gh-bts-issue는 더 이상 공용 어댑터가 아님" 1 env IMPL_PROFILE="$F" $P adapter 이슈.bts_adapter
 F=$(variant missing-repo-adapter <<< 's#^- spec_adapter: .*#- spec_adapter: tools/none.sh#')
 expect_exit "레포 어댑터 파일 없음 (analyze-spec)" 1 env IMPL_PROFILE="$F" $P check --for analyze-spec
 F=$(variant no-variants <<< '/^- module_variants:/d')

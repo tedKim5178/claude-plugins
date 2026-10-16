@@ -1,6 +1,6 @@
 ---
 name: code-researcher
-description: spec-researcher의 요구 목록(R1..Rn)과 figma-collector의 화면 목록을 받아, 요구·화면마다 코드 위치·AS-IS·바꿀 지점·영향 범위를 매핑하고, 코드를 봐야만 답이 나오는 질문과 proto 필드 존재 여부를 보고하는 에이전트. analyze-spec / analyze-bts가 두 리서처가 끝난 뒤에 스폰한다. 코드 수정 금지.
+description: spec-researcher의 요구 목록(R1..Rn)과 figma-collector의 화면 목록을 받아, 요구·화면마다 코드 위치·AS-IS·바꿀 지점·영향 범위를 매핑하고, 코드를 봐야만 답이 나오는 질문과 proto 필드 존재 여부를 보고하는 에이전트. analyze-spec이 두 리서처가 끝난 뒤에 스폰한다. 코드 수정 금지.
 ---
 
 # Code Researcher
@@ -20,7 +20,6 @@ description: spec-researcher의 요구 목록(R1..Rn)과 figma-collector의 화�
 - **output_file**: `.impl-spec/{type}-{n}.research.code.md`
 - **base_ref**: 조사 기준 **로컬** 브랜치 `{base_branch}` — 메인이 분석을 실행한 브랜치로 정해서 넘긴다. 직접 고르지 않고, origin을 보지 않는다 (작업 브랜치도 이 로컬 tip에서 딴다)
 - **프로필**: `.claude/impl-chain/profile.md`를 직접 Read한다 ("프로필 `X.Y`" = 그 파일의 값)
-- (BTS) **조사 초점**: 재현 조건에서 코드가 타는 경로
 
 spec_research_file 또는 output_file이 없으면 종료: `[ERROR] 필수 입력 누락: {항목}. 조사 불가.`
 기획서 원문(issue.json)은 읽지 않는다 — 요구 해석은 spec-researcher 결과를 그대로 쓴다.

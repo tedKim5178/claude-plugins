@@ -67,10 +67,10 @@ state '[{"kind":"map_row","op":"append_issue","data_name":"top_navigation","issu
 run "이슈 덧붙임" 0 "UPDATED map_row top_navigation"
 grep -qx '| `top_navigation` | `AppTopBar` | 뒤로가기; 사용 이슈: spec-1234 | A.kt:1 |' "$D/map.md" && ok "비고 형식" || bad "비고 형식: $(grep top_navigation "$D/map.md")"
 run "같은 이슈 다시 → SKIP" 0 "SKIP map_row top_navigation"
-state '[{"kind":"map_row","op":"append_issue","data_name":"top_navigation","issue":"bts-1"}]'
+state '[{"kind":"map_row","op":"append_issue","data_name":"top_navigation","issue":"spec-77"}]'
 run "두 번째 이슈" 0 "UPDATED"
-grep -q '사용 이슈: spec-1234, bts-1 |' "$D/map.md" && ok "이슈 누적" || bad "이슈 누적: $(grep top_navigation "$D/map.md")"
-state '[{"kind":"map_row","op":"append_issue","data_name":"no_such","issue":"bts-1"}]'
+grep -q '사용 이슈: spec-1234, spec-77 |' "$D/map.md" && ok "이슈 누적" || bad "이슈 누적: $(grep top_navigation "$D/map.md")"
+state '[{"kind":"map_row","op":"append_issue","data_name":"no_such","issue":"spec-77"}]'
 run "행 없음 → CONFLICT" 3 "CONFLICT map_row no_such"
 
 echo "asset"

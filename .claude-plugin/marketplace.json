@@ -8,7 +8,7 @@
     {
       "name": "impl-chain",
       "source": "./plugins/impl-chain",
-      "description": "GitHub 이슈(기획서·BTS)에서 분석 → 구현 → PR까지 이어지는 작업 체인 (GitHub + Android)"
+      "description": "GitHub 기획 이슈에서 분석 → 구현 → PR까지 이어지는 작업 체인 (GitHub + Android)"
     }
   ]
 }

@@ -18,7 +18,7 @@ invocable: true
 
 | 경로 | 상태 파일 | 동작 차이 |
 |------|----------|----------|
-| **체인** (`impl-spec`/`analyze-*` → 여기) | `.impl-spec/{type}-{n}.json`, `stage: analyzed` | base·브랜치·todo·검증 커맨드를 파일에서 읽는다. Step 0은 **미리보기만** (묻지 않음) |
+| **체인** (`impl-spec`/`analyze-spec` → 여기) | `.impl-spec/{type}-{n}.json`, `stage: analyzed` | base·브랜치·todo·검증 커맨드를 파일에서 읽는다. Step 0은 **미리보기만** (묻지 않음) |
 | **단독** (`/start-work {브랜치명}`, 예: `fix/xxx`) | 없음 | Step 0 승인 게이트 + Step 1 base 선택 |
 
 **상태 파일 선택** — `${CLAUDE_PLUGIN_ROOT}/references/impl-state-file.md`의 "상태 파일 선택 규칙"을 따른다.

@@ -14,7 +14,7 @@
 #   impl-state.sh stage <type> <number> <stage>     단계 전이 (조건 검증)
 #   impl-state.sh check-branch <type> <number>      현재 브랜치가 상태 파일의 branch와 같은지
 #
-# type: spec | bts   (같은 번호라도 레포가 다르므로 파일이 분리된다: spec-4895.json / bts-4895.json)
+# type: spec   (파일 이름 spec-4895.json — 이슈 종류를 키에 남겨 둔다)
 # 종료 코드: 0 성공, 1 사용법/검증 실패, 2 파일 없음, 3 단계 전이 불가
 
 set -euo pipefail
@@ -25,15 +25,15 @@ DIR="$ROOT/.impl-spec"
 die() { echo "ERROR: $1" >&2; exit "${2:-1}"; }
 
 key_of() {
-  case "$1" in spec|bts) ;; *) die "type은 spec 또는 bts: '$1'" ;; esac
+  [ "$1" = spec ] || die "type은 spec: '$1'"
   [[ "$2" =~ ^[0-9]+$ ]] || die "number는 숫자: '$2'"
   echo "$1-$2"
 }
 
-file_of() { echo "$DIR/$(key_of "$1" "$2").json"; }
+file_of() { local k; k=$(key_of "$1" "$2") || exit 1; echo "$DIR/$k.json"; }   # 잘못된 type·number면 exit 1 (빈 키 경로로 진행하지 않는다)
 
 require_file() {
-  local f; f="$(file_of "$1" "$2")"
+  local f; f="$(file_of "$1" "$2")" || exit 1   # $( ) 안에서는 set -e가 안 걸린다
   [ -f "$f" ] || die "상태 파일 없음: $f" 2
   echo "$f"
 }
@@ -140,7 +140,7 @@ case "$cmd" in
     [ -d "$DIR" ] || exit 0
     for f in "$DIR"/*.json; do
       [ -e "$f" ] || continue
-      [[ "$(basename "$f")" =~ ^(spec|bts)-[0-9]+\.json$ ]] || continue   # issue.json, draft.json 제외
+      [[ "$(basename "$f")" =~ ^spec-[0-9]+\.json$ ]] || continue   # issue.json, draft.json 제외
       jq -r --arg k "$(basename "$f" .json)" --arg want "$want" '
         select($want == "" or .stage == $want)
         | [$k, .stage, .branch, .updated_at, .issue_title] | @tsv' "$f"

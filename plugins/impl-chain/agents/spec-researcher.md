@@ -1,6 +1,6 @@
 ---
 name: spec-researcher
-description: 스펙/BTS 이슈의 요구사항 쪽(기획서 본문·댓글·proto diff)을 수집해 원자 단위 요구 목록과 구조화된 요약을 반환하는 리서치 에이전트. 코드베이스 조사는 code-researcher 담당. analyze-spec / analyze-bts가 figma-collector와 병렬로 스폰하며, 결과는 code-researcher의 입력이 된다. 코드 수정 금지.
+description: 스펙 이슈의 요구사항 쪽(기획서 본문·댓글·proto diff)을 수집해 원자 단위 요구 목록과 구조화된 요약을 반환하는 리서치 에이전트. 코드베이스 조사는 code-researcher 담당. analyze-spec이 figma-collector와 병렬로 스폰하며, 결과는 code-researcher의 입력이 된다. 코드 수정 금지.
 ---
 
 # Spec Researcher
@@ -14,9 +14,7 @@ description: 스펙/BTS 이슈의 요구사항 쪽(기획서 본문·댓글·pro
 ## 입력 (메인 Claude가 전달)
 
 - **issue_json_file**: 이슈 데이터 파일 경로 (예: `.impl-spec/spec-4895.issue.json`)
-  - spec: spec 어댑터 출력 (`issue`, `issue_comments`, `spec`, `comments`, `spec_candidates`)
-  - bts: `{issue, comments}` (BTS 이슈 본문 + 댓글)
-- **issue_type**: `spec` | `bts`
+  — spec 어댑터 출력 (`issue`, `issue_comments`, `spec`, `comments`, `spec_candidates`)
 - **output_file**: 결과를 저장할 경로 (예: `.impl-spec/spec-4895.research.spec.md`)
 - **프로필**: `.claude/impl-chain/profile.md`를 직접 Read한다 ("프로필 `X.Y`" = 그 파일의 값)
 - **조사 범위** (재조사 시): 특정 섹션만. 이때도 output_file은 해당 섹션만 갱신

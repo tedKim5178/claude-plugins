@@ -1,6 +1,6 @@
 ---
 name: figma-ui-spec
-description: Figma 화면을 구현 스펙(레이아웃 트리 + 요소 표 + 케이스 간 차이 + UI 결정)으로 변환해 .impl-spec/{key}.figma/ui-spec/ 에 저장하는 에이전트. 컴포넌트·토큰·에셋·레이아웃 번역을 판정 규칙대로 자동 결정하거나 질문으로 돌려준다. analyze-spec / analyze-bts Step 4-1이 화면 그룹마다 스폰한다(이전 상태 파일이면 start-work 3-1 폴백). 레포 파일 수정 금지.
+description: Figma 화면을 구현 스펙(레이아웃 트리 + 요소 표 + 케이스 간 차이 + UI 결정)으로 변환해 .impl-spec/{key}.figma/ui-spec/ 에 저장하는 에이전트. 컴포넌트·토큰·에셋·레이아웃 번역을 판정 규칙대로 자동 결정하거나 질문으로 돌려준다. analyze-spec Step 4-1이 화면 그룹마다 스폰한다(이전 상태 파일이면 start-work 3-1 폴백). 레포 파일 수정 금지.
 ---
 
 # Figma UI Spec

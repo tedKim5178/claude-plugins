@@ -1,6 +1,6 @@
 ---
 name: create-pr
-description: start-work 완료 후 작업 브랜치를 push하고 PR을 생성할 때 사용. BTS 또는 스펙 이슈 연결 포함.
+description: start-work 완료 후 작업 브랜치를 push하고 PR을 생성할 때 사용. 스펙 이슈 연결 포함.
 invocable: true
 ---
 
@@ -31,7 +31,6 @@ push가 rejected·non-fast-forward 등으로 실패하면 보고 후 중단한�
 ```
 /create-pr                    # 상태 파일 선택 규칙대로
 /create-pr spec 4895          # 명시
-/create-pr bts 7919
 ```
 
 ---
@@ -59,7 +58,7 @@ $S check-branch {type} {n}     # 현재 브랜치 == 상태 파일 branch 인지
 B=$(git branch --show-current)          # 프로필 git.branch_format 꼴이어야 한다 (base 브랜치 위에서 실행한 게 아닌지)
 git status --porcelain --untracked-files=no   # 비어 있어야 한다 (커밋 안 된 변경이 있으면 보고)
 ```
-base와 이슈(번호·유형)는 **AskUserQuestion**으로 받는다 (base 선택지: 프로필 `git.standalone_base_candidates`). 추측하지 않는다.
+base와 이슈 번호는 **AskUserQuestion**으로 받는다 (base 선택지: 프로필 `git.standalone_base_candidates`). 추측하지 않는다.
 
 ### 1. 이미 PR이 있는지
 ```bash

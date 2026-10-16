@@ -106,15 +106,15 @@ PR: {pr_url}
 
 ## 체인 공통 규칙 (모든 체인 스킬에 적용 — 레포 지침에 같은 내용이 없어도)
 
-**커밋 허락.** analyze-spec/analyze-bts의 리포트 승인(상태 파일 `stage: analyzed`가 생긴 것)이 **그 상태 파일 `branch`에 대한 커밋 허락**이다.
+**커밋 허락.** analyze-spec의 리포트 승인(상태 파일 `stage: analyzed`가 생긴 것)이 **그 상태 파일 `branch`에 대한 커밋 허락**이다.
 start-work는 다시 묻지 않고 절차대로(컴파일·테스트·리뷰 통과 후, 규모와 무관하게 **한 번**) 커밋한다. 단독 start-work는 Step 0 미리보기 "진행" 승인이 그 작업 브랜치의 커밋 허락이다.
 - **push는 별도다** — create-pr Step 4에서 따로 승인받는다.
 - 레포 지침(CLAUDE.md 등)이 커밋마다 따로 묻게 하면 그 지침을 따른다 (더 엄격한 쪽).
 - start-work가 끝난 뒤의 후속 수정(PR 리뷰 반영 등)은 체인 밖이다 — 커밋 전에 묻는다.
 
 **다른 작업 방식 스킬과의 관계.** 체인은 계획·리뷰·검증 단계를 스스로 갖고 있다. 체인 안에서는 범용 작업 스킬(예: superpowers의 brainstorming·writing-plans·executing-plans·requesting-code-review·verification·worktree·finishing-branch)을 **추가로 부르지 않는다** —
-analyze-*의 리서치+확인 루프가 요구 탐색·계획을, 상태 파일이 계획서를, start-work Step 9 리뷰어가 코드 리뷰를, `impl-state.sh stage`가 완료 검증을 대신한다.
-체인 문서가 직접 부르라고 적은 곳만 쓴다: start-work Step 4~5 TDD(RED→GREEN), Step 6·7 실패 시 체계적 디버깅, analyze-bts 버그 분석.
+analyze-spec의 리서치+확인 루프가 요구 탐색·계획을, 상태 파일이 계획서를, start-work Step 9 리뷰어가 코드 리뷰를, `impl-state.sh stage`가 완료 검증을 대신한다.
+체인 문서가 직접 부르라고 적은 곳만 쓴다: start-work Step 4~5 TDD(RED→GREEN), Step 6·7 실패 시 체계적 디버깅.
 **워크트리를 만들지 않는다** — 체인은 메인 워크스페이스에서 브랜치를 바꾼다(setup-branch.sh).
 
 ## 주의사항

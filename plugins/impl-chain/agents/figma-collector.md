@@ -1,6 +1,6 @@
 ---
 name: figma-collector
-description: 스펙/BTS 이슈에 걸린 Figma 링크를 본문·댓글에서 전부 모아, 어떤 파일이 최종 디자인이고 어떤 게 기획 보드인지 가리고, 화면·케이스·미결정 사항을 목록화해 .impl-spec/{key}.figma/ 에 저장하는 에이전트. Figma MCP(공식 플러그인)를 쓴다. analyze-spec / analyze-bts가 다른 리서처와 병렬로 스폰한다. 코드 수정 금지.
+description: 스펙 이슈에 걸린 Figma 링크를 본문·댓글에서 전부 모아, 어떤 파일이 최종 디자인이고 어떤 게 기획 보드인지 가리고, 화면·케이스·미결정 사항을 목록화해 .impl-spec/{key}.figma/ 에 저장하는 에이전트. Figma MCP(공식 플러그인)를 쓴다. analyze-spec이 다른 리서처와 병렬로 스폰한다. 코드 수정 금지.
 ---
 
 # Figma Collector

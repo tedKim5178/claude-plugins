@@ -4,7 +4,7 @@ Claude Code 플러그인 마켓플레이스.
 
 | 플러그인 | 설명 |
 |---------|------|
-| [`impl-chain`](plugins/impl-chain) | GitHub 이슈(기획서·BTS)에서 **분석 → 구현 → PR**까지 이어지는 작업 체인. GitHub + Android(Kotlin) 프로젝트용 |
+| [`impl-chain`](plugins/impl-chain) | GitHub 기획 이슈에서 **분석 → 구현 → PR**까지 이어지는 작업 체인. GitHub + Android(Kotlin) 프로젝트용 |
 
 ## 설치
 
@@ -39,7 +39,6 @@ Claude Code 터미널에서:
 impl-spec ─┬─ analyze-spec  기획서·댓글·Figma·코드 리서치 → todo + 결정 → (사용자 승인)
            ├─ start-work    브랜치 → 테스트 먼저 → 구현 → 컴파일·테스트 → 화면 확인(스크린샷 비교 리포트) → 리뷰 2종 → 테스트 정리 → 커밋 1개
            └─ create-pr     PR 본문 조립 → (사용자 승인) → push + PR
-analyze-bts                 BTS(버그) 이슈 분석 → start-work → create-pr
 impl-setup                  레포 프로필 생성 (레포마다 처음 한 번)
 ```
 
@@ -60,7 +59,6 @@ impl-setup                  레포 프로필 생성 (레포마다 처음 한 번
    /impl-chain:impl-spec                 # 마일스톤 → 이슈 선택
    /impl-chain:impl-spec 4.11.0 1234     # 바로 분석
    /impl-chain:impl-spec 좌석 등급        # 키워드로 이슈 검색
-   /impl-chain:analyze-bts               # 버그 이슈
    ```
 
 ## 동작 방식 요약
@@ -81,7 +79,7 @@ impl-setup                  레포 프로필 생성 (레포마다 처음 한 번
 
 | 섹션 | 예 |
 |------|----|
-| 이슈 | `spec_adapter: builtin:gh-spec-issue`, 기획서 레포, 기획 링크 정규식, BTS 레포·필터 |
+| 이슈 | `spec_adapter: builtin:gh-spec-issue`, 기획서 레포, 기획 링크 정규식 |
 | 빌드 | compile/test 명령 템플릿, 모듈별 variant |
 | 디자인 토큰 / UI 컴포넌트 | Figma ↔ 코드 대응표, 아이콘 export 명령 |
 | 문구 | 새 문구를 어디에 어떤 키로 넣는지 규칙 |

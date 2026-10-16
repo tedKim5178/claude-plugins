@@ -3,7 +3,7 @@
 
 규격: impl-chain references/impl-state-file.md "apply 형식". start-work Step 2-1이 브랜치 생성 직후 실행한다.
 
-Usage: apply-ui-decisions.py <spec|bts> <number>
+Usage: apply-ui-decisions.py spec <number>
 
 - map_row add          : 대응표(프로필 `UI 컴포넌트.map`)에 행 추가.
                          같은 data-name 행이 같은 component면 SKIP, 다르면 CONFLICT
@@ -256,8 +256,8 @@ def apply_assets(entries):
 
 
 def main(argv):
-    if len(argv) != 2 or argv[0] not in ("spec", "bts") or not argv[1].isdigit():
-        die("usage: apply-ui-decisions.py <spec|bts> <number>")
+    if len(argv) != 2 or argv[0] != "spec" or not argv[1].isdigit():
+        die("usage: apply-ui-decisions.py spec <number>")
     state = ROOT / ".impl-spec" / f"{argv[0]}-{argv[1]}.json"
     if not state.is_file():
         die(f"상태 파일 없음: {rel(state)}", 2)

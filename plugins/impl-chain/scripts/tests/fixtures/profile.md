@@ -4,8 +4,6 @@
 - spec_adapter: builtin:gh-spec-issue
 - spec_repo: example-org/planning
 - spec_link_regex: planning/issues/([0-9]+)
-- bts_adapter: builtin:gh-bts-issue
-- bts_repo: example-org/bugs
 
 ## 서버 계약
 - mode: proto-repo
@@ -13,7 +11,7 @@
 
 ## git
 - standalone_base_candidates: `main`
-- branch_format: spec `feat/{n}-{slug}`, bts `fix/{slug}`
+- branch_format: `feat/{n}-{slug}`
 - commit_format: `{type}({scope}) : {요약}`
 
 ## 빌드
