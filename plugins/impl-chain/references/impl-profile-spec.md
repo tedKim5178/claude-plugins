@@ -59,7 +59,8 @@ exit 0이면 통과. 아니면 stderr의 문제 목록을 그대로 보여주고
 | | `remote` | | push·PR에 쓰는 원격 이름. 없으면 `origin` (포크 구조로 `upstream` 등을 쓰는 레포) |
 | 빌드 | `compile` | ✅ | 컴파일 명령 템플릿 (`{module}`) |
 | | `test` | ✅ | 유닛 테스트 명령 템플릿. 테스트 인프라가 없으면 `none` |
-| | `install` | 화면 확인.mode가 none이 아니면 | 기기 설치 명령 |
+| | `install` | 화면 확인.mode가 none이 아니면 | 기기 설치 명령. `{id}`가 있으면 visual-verifier가 기기 어댑터 `ensure`가 고른 기기 id로 채운다 |
+| | `install_real` | | 고른 기기가 **실기기**(`KIND real`)일 때만 `install` 대신 쓰는 설치 명령 (`{id}` 같음). iOS처럼 실기기·시뮬레이터 빌드가 다를 때. 없으면 `install` |
 | | `module_variants` | compile/test에 `{variant}`가 있으면 | 모듈(그룹) → variant 대응. 모듈마다 빌드 변형이 다른 레포용 |
 | | `test_source_hint` | | 모듈의 테스트 소스 위치 (테스트가 있는지 판단용) |
 | | `test_retention` | | `discard`(기본 — 키가 없을 때도) \| `keep`. `discard`: start-work가 이번 작업에서 추가한 테스트 코드를 통과 확인·리뷰 뒤에 지우고 커밋에 넣지 않는다 (start-work Step 9-1). `keep`: 테스트도 커밋한다 |
@@ -80,8 +81,9 @@ exit 0이면 통과. 아니면 stderr의 문제 목록을 그대로 보여주고
 | 문구 | `mode` | ✅ | `rule` \| `hardcode` |
 | | `rule` | mode=rule | 문구 규칙 문서 (어디에, 어떤 키로, 리뷰 시 무엇을 검사하는지) |
 | 화면 확인 | `mode` | ✅ | `device-mock`(기기 + 서버 응답 mock 스킬) \| `device`(기기만 — 서버 상태가 필요한 케이스는 수동 확인) \| `none`. `adb-mock`·`adb`는 `device-mock`·`device`와 같은 뜻으로 받는다 |
-| | `device_adapter` | | 기기 어댑터 — 기기 확보·화면 읽기·탭·스크린샷을 하는 스크립트. `builtin:android-device`(체인 공용 — adb·에뮬레이터) / `builtin:ios-device`(체인 공용 — iOS 시뮬레이터, simctl + AXe) / `builtin:ios-real-device`(체인 공용 — USB로 연결한 iOS 실기기, WebDriverAgent) 또는 레포 전용 어댑터의 레포 루트 기준 경로. **없으면 `builtin:android-device`** |
+| | `device_adapter` | | 기기 어댑터 — 기기 확보·화면 읽기·탭·스크린샷을 하는 스크립트. **쉼표로 여러 개 적으면 우선순위 목록**이다 — visual-verifier가 앞에서부터 기기를 확보해 보고 처음 성공한 것을 쓴다 (예: `builtin:ios-real-device, builtin:ios-device` = 실기기가 연결돼 있으면 실기기, 아니면 시뮬레이터). `builtin:android-device`(체인 공용 — adb·에뮬레이터) / `builtin:ios-device`(체인 공용 — iOS 시뮬레이터, simctl + AXe) / `builtin:ios-real-device`(체인 공용 — USB로 연결한 iOS 실기기, WebDriverAgent) 또는 레포 전용 어댑터의 레포 루트 기준 경로. **없으면 `builtin:android-device`** |
 | | `mock_skill` | mode=device-mock | 서버 응답 mock 스킬 이름 — 레포 `.claude/skills/` 또는 `~/.claude/skills/`에 있어야 한다 |
+| | `mock_skill_real` | | 고른 기기가 실기기(`KIND real`)일 때만 `mock_skill` 대신 쓰는 mock 스킬 (mock을 넣는 통로가 실기기·가상 기기에서 다를 때). 없으면 `mock_skill` |
 | | `avd` | | (`builtin:android-device` 전용) 연결 기기가 없을 때 헤드리스로 부팅할 AVD 이름 (없으면 `emulator -list-avds` 첫 번째). 레포 전용 기기 어댑터는 자기 키를 정해 `impl-profile.sh get`으로 읽는다 |
 | | `simulator` | | (`builtin:ios-device` 전용) 부팅된 시뮬레이터가 없을 때 부팅할 시뮬레이터 이름 또는 UDID (없으면 최신 iOS 런타임의 첫 iPhone) |
 | | `device_udid` | | (`builtin:ios-real-device` 전용) 쓸 기기 UDID (없으면 USB로 연결된 첫 기기) |
@@ -134,13 +136,15 @@ exit 0이면 통과. 아니면 stderr의 문제 목록을 그대로 보여주고
 
 ### 기기 어댑터 (`화면 확인.device_adapter`)
 
-visual-verifier는 기기를 이 어댑터로만 다룬다. 경로는 `impl-profile.sh adapter "화면 확인.device_adapter"`로 얻는다 (키가 없으면 `builtin:android-device`).
+visual-verifier는 기기를 이 어댑터로만 다룬다. 경로는 `impl-profile.sh adapters`로 우선순위 순서대로 얻는다 (키가 없으면 `builtin:android-device` 하나).
+목록이면 앞에서부터 `ensure`를 시도해 exit 3·4(도구·기기 없음)·5(시간 초과)면 다음 어댑터로 넘어가고, 처음 성공한 어댑터 하나만 쓴다.
 `{id}`는 `ensure`가 준 기기 식별자다 (Android serial, iOS 시뮬레이터 UDID 등 — 어댑터가 정한다).
 
 | 호출 | 동작·출력 | 필수 |
 |------|-----------|------|
 | `{device_adapter} check` | 기기 도구를 쓸 수 있으면 exit 0 (stdout: 도구 경로 한 줄), 없으면 exit 3. impl-setup이 모드 후보를 정할 때 쓴다 | ✅ |
-| `{device_adapter} ensure` | stdout = 쓸 기기 `{id}`. 연결된 기기가 없으면 에뮬레이터·시뮬레이터를 부팅하고 stderr에 `BOOTED {id}` 한 줄. exit 3 도구 없음 / 4 기기 없음 / 5 부팅 시간 초과 (stderr 첫 줄 = 사유) | ✅ |
+| `{device_adapter} ensure` | stdout = 쓸 기기 `{id}`. 연결된 기기가 없으면 에뮬레이터·시뮬레이터를 부팅하고 stderr에 `BOOTED {id}` 한 줄. 실기기·가상 기기를 다 다루는 어댑터는 **실기기를 먼저** 고른다. exit 3 도구 없음 / 4 기기 없음 / 5 부팅 시간 초과 (stderr 첫 줄 = 사유) | ✅ |
+| (`ensure`의 stderr) `KIND real\|virtual` | 고른 기기가 실기기인지 에뮬레이터·시뮬레이터인지 한 줄. visual-verifier가 `빌드.install_real`·`화면 확인.mock_skill_real`을 쓸지 정한다 — 없으면 둘 다 쓰지 않는다. 공용 어댑터는 모두 낸다 | |
 | `{device_adapter} cleanup {id}` | `ensure`가 부팅한 기기를 종료. 원래 연결돼 있던 기기는 건드리지 않는다 | ✅ |
 | `{device_adapter} ui {id}` | stdout = 화면 요소 트리. 요소마다 **보이는 텍스트와 화면 좌표**가 있어야 한다 (형식은 자유 — XML·JSON 등). 못 읽으면 exit 1 | ✅ |
 | `{device_adapter} tap {id} {x} {y}` | 그 좌표를 탭. **좌표계는 `ui` 출력과 같다** — 스크린샷 픽셀과는 배율이 다를 수 있다 (iOS는 포인트, 스크린샷은 2~3배 픽셀) | ✅ |
@@ -148,15 +152,15 @@ visual-verifier는 기기를 이 어댑터로만 다룬다. 경로는 `impl-prof
 | `{device_adapter} screenshot {id} {out.png}` | 현재 화면을 PNG로 저장. 실패하면 exit 1 | ✅ |
 | `{device_adapter} key {id} back\|home` | 시스템 키. 플랫폼에 없으면 exit 1 (호출자가 화면의 버튼을 tap한다) | |
 
-- 앱 설치는 어댑터가 아니라 프로필 `빌드.install`이 한다 — 어댑터의 `ensure`가 고르는 기기와 같은 기기에 설치되도록 맞춘다.
-  (iOS 예: 시뮬레이터용으로 빌드한 뒤 `xcrun simctl install booted {앱.app}` — visual-verifier는 `ensure` 뒤에 설치하므로 `booted`가 그 시뮬레이터다.)
+- 앱 설치는 어댑터가 아니라 프로필 `빌드.install`(실기기면 `빌드.install_real`이 있을 때 그것)이 한다 — `{id}`로 `ensure`가 고른 기기에 설치되도록 맞춘다.
+  (iOS 예: 시뮬레이터 `install` = 시뮬레이터용 빌드 후 `xcrun simctl install {id} {앱.app}` / 실기기 `install_real` = 기기용 빌드 후 `xcrun devicectl device install app --device {id} {앱.app}`. Android는 실기기·에뮬레이터 모두 `adb -s {id} install` 하나면 된다.)
 - `builtin:ios-device`는 **시뮬레이터 전용**, `builtin:ios-real-device`는 **USB 실기기 전용**이다. 둘 다 `key back`은 없다 — 화면의 뒤로 버튼을 tap한다.
 - `builtin:ios-real-device`는 기기를 부팅하지 않는다. `ensure`는 포트 포워드(iproxy)를 열고 WebDriverAgent가 응답할 때까지 기다리며(필요하면 `wda_start` 실행), 자기가 띄운 것이 있으면 `BOOTED`를 낸다 — `cleanup`은 그 포워드·WDA 프로세스만 끝낸다.
   WebDriverAgent는 본인 개발 팀으로 서명해 기기에 올릴 수 있어야 한다 (Xcode에서 WebDriverAgentRunner 타깃의 Team·Bundle Identifier 설정 — 한 번).
-  실기기 설치 예 (`빌드.install`): 기기용으로 빌드한 뒤 `xcrun devicectl device install app --device {udid} {앱.app}`.
 - 기기 선택에 설정이 필요하면(부팅할 기기 이름 등) 어댑터가 `화면 확인` 섹션에 자기 키를 정해 읽는다.
-- mock 스킬은 어댑터와 별개다 (`화면 확인.mock_skill`) — 같은 플랫폼·같은 대상(에뮬레이터/실기기)의 것끼리 짝을 맞춘다.
-- **어댑터는 검사를 통과한 것만 프로필에 적는다**: `device-adapter-check.sh [--out <dir>] [<어댑터 경로>]`가 실제 기기로 위 호출을 한 바퀴 돌린다 (exit 0 계약 통과 / 1 계약 위반 / 2 도구·기기가 없어 검사 못 함). `/impl-setup` Step 4-1이 공용 어댑터를 고르거나 레포 전용 어댑터를 `.claude/impl-chain/adapters/`에 만든 뒤 이 검사를 돌린다. 어댑터를 손으로 고쳤을 때도 돌린다.
+- mock 스킬은 어댑터와 별개다 (`화면 확인.mock_skill`) — 같은 플랫폼·같은 대상(에뮬레이터/실기기)의 것끼리 짝을 맞춘다. 어댑터 목록이 실기기·가상 기기를 다 쓰는데 mock을 넣는 통로가 다르면 실기기용을 `mock_skill_real`에 적는다.
+- iOS에서 실기기를 먼저 쓰고 싶으면 `builtin:ios-real-device, builtin:ios-device`로 적는다. 레포에 어댑터를 새로 만들 필요는 없다 — Mac에 도구(실기기: libimobiledevice + WebDriverAgent 서명, 시뮬레이터: Xcode + AXe)만 있으면 된다. 실기기 쪽이 준비 안 됐으면 자동으로 시뮬레이터로 넘어간다.
+- **어댑터는 검사를 통과한 것만 프로필에 적는다** (목록이면 어댑터마다): `device-adapter-check.sh [--out <dir>] [<어댑터 경로>]`가 실제 기기로 위 호출을 한 바퀴 돌린다 (exit 0 계약 통과 / 1 계약 위반 / 2 도구·기기가 없어 검사 못 함). `/impl-setup` Step 4-1이 공용 어댑터를 고르거나 레포 전용 어댑터를 `.claude/impl-chain/adapters/`에 만든 뒤 이 검사를 돌린다. 어댑터를 손으로 고쳤을 때도 돌린다.
 
 ### 문서형 어댑터 (`UI 컴포넌트.map`, `디자인 토큰.map`, `문구.rule`)
 

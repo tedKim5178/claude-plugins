@@ -36,6 +36,7 @@ cat > "$T/results.json" <<'JSON'
   "device": "R5CT (연결 기기)", "build": "./gradlew :app:installDebug", "commit": "abc1234",
   "entry": "홈 → 예약 → 좌석. mock은 grade만 바꿈",
   "mock_files": ["seat.v1.SeatService__ListSeats.json"],
+  "device_fallback": ["ios-real-device: USB로 연결된 iOS 기기가 없습니다"],
   "results": [
     {"case_id": "V1", "verdict": "PASS", "evidence": "text=\"프리미엄\"", "screenshot": "V1.png"},
     {"case_id": "V2", "verdict": "FAIL", "evidence": "기대 \"뱃지 없음\", 실제 <프리미엄>", "screenshot": "V2.png"},
@@ -71,6 +72,7 @@ has "$H" "확인 안 함" "결과 없는 계획 케이스(V4)는 '확인 안 함
 has "$H" "계획에 없던 케이스" "extra 케이스 표시"
 has "$H" "실서버 응답" "확인하지 못한 것"
 has "$H" "seat.v1.SeatService__ListSeats.json" "mock 파일"
+has "$H" "건너뛴 기기 어댑터 — ios-real-device" "건너뛴 기기 어댑터"
 has "$H" "날짜 형식이 Figma와 다름" "관찰"
 # 대상(target)이 회귀보다 먼저
 [ "$(grep -n 'data-case="V1"' "$H" | cut -d: -f1)" -lt "$(grep -n 'data-case="V2"' "$H" | cut -d: -f1)" ] && ok "target이 regression보다 앞" || bad "순서"

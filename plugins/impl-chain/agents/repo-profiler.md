@@ -67,7 +67,8 @@ description: impl-setup이 스폰하는 읽기 전용 레포 분석 에이전트
    - iOS 시뮬레이터: `${CLAUDE_PLUGIN_ROOT}/scripts/ios-device.sh check` + `xcrun simctl list devices available`
    - iOS 실기기: `${CLAUDE_PLUGIN_ROOT}/scripts/ios-real-device.sh check` + `idevice_id -l` (USB 연결 기기)
    - 레포에 이미 있는 전용 어댑터: `.claude/impl-chain/adapters/*device*.sh` — 있으면 그 `check`
-4. **후보 정리**: 어댑터 후보마다 "지금 바로 쓸 수 있음 / 도구 설치 필요 / 기기 연결 필요 / mock 스킬과 짝이 맞는지"를 적는다. 후보가 둘 이상이면 질문으로 돌린다.
+4. **실기기·가상 기기 차이** (iOS처럼 실기기와 시뮬레이터 어댑터가 따로인 플랫폼): 실기기 설치 명령이 가상 기기와 다른지 — 빌드 스크립트·Fastfile·README·CI 설정에서 기기용 빌드(`-sdk iphoneos`, `generic/platform=iOS`)와 설치(`devicectl`, `ios-deploy`)를 찾아 `빌드.install_real` 후보로 적는다. mock 스킬이 실기기와 시뮬레이터에서 통로가 다르면(파일 경로 vs 포트 포워드) 그것도 적는다 (`mock_skill_real` 후보).
+5. **후보 정리**: 어댑터 후보마다 "지금 바로 쓸 수 있음 / 도구 설치 필요 / 기기 연결 필요 / mock 스킬과 짝이 맞는지"를 적는다. 후보가 둘 이상이면 질문으로 돌린다 — iOS에서 실기기·시뮬레이터 어댑터를 둘 다 쓸 수 있으면 우선순위 목록(`builtin:ios-real-device, builtin:ios-device`)을 첫 후보로.
    해당 플랫폼의 공용 어댑터가 없으면 "레포 전용 어댑터 필요"라고 적고, 그 플랫폼에서 화면 읽기·터치·스크린샷에 쓸 수 있는 설치된 도구가 보이면 이름만 적는다 (문법을 추측해 적지 않는다).
 
 기기를 조작하거나 부팅하지 않는다 — `check`와 목록 조회만.

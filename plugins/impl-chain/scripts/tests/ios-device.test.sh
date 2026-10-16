@@ -73,12 +73,14 @@ devices Shutdown Booted
 expect "부팅된 것이 있으면 그 UDID" 0 run "$D" ensure
 [ "$out" = "U-185-16" ] && ok "Booted만 고름 (iOS 런타임만)" || bad "out=$out"
 [ ! -f "$T/booted" ] && ok "부팅하지 않음" || bad "부팅함"
+grep -qx "KIND virtual" "$T/err" && ok "KIND virtual" || bad "KIND: $(cat "$T/err")"
 
 echo "ensure — 부팅된 것 없음"
 devices Shutdown Shutdown
 expect "기본 선택으로 부팅" 0 run "$D" ensure
 [ "$out" = "U-263-15P" ] && ok "최신 런타임의 사용 가능한 iPhone" || bad "out=$out"
 grep -q "BOOTED U-263-15P" "$T/err" && ok "stderr에 BOOTED" || bad "BOOTED 없음: $(cat "$T/err")"
+grep -qx "KIND virtual" "$T/err" && ok "부팅한 것도 KIND virtual" || bad "KIND: $(cat "$T/err")"
 grep -q "bootstatus U-263-15P -b" "$T/booted" && ok "bootstatus -b 호출" || bad "booted=$(cat "$T/booted" 2>/dev/null)"
 rm -f "$T/booted"
 expect "이름으로 지정" 0 run "$D" ensure "iPhone 16"

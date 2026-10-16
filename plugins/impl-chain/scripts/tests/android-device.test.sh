@@ -23,6 +23,7 @@ S="$T/state"
 case "\$*" in
   devices) echo "List of devices attached"; cat "\$S" 2>/dev/null ;;
   *"getprop sys.boot_completed"*) echo 1 ;;
+  *"getprop ro.kernel.qemu"*) grep -qx "\$2" "$T/qemu" 2>/dev/null && echo 1 ;;
   *"emu kill"*) echo "\$*" >> "$T/killed"; : > "\$S" ;;
   *"uiautomator dump"*) [ -f "$T/ui-broken" ] && exit 1; echo "\$*" >> "$T/calls" ;;
   *"exec-out cat"*) echo '<hierarchy><node text="확인" bounds="[0,0][10,10]"/></hierarchy>' ;;
@@ -55,6 +56,22 @@ printf 'R5CT\tdevice\nX\toffline\n' > "$T/state"
 expect "연결 기기가 있으면 그 serial" 0 run "$D" ensure
 [ "$out" = "R5CT" ] && ok "device 상태만 고름" || bad "out=$out"
 [ ! -f "$T/booted" ] && ok "부팅하지 않음" || bad "부팅함"
+grep -qx "KIND real" "$T/err" && ok "실기기면 KIND real" || bad "KIND: $(cat "$T/err")"
+
+echo "ensure — 실기기 우선"
+printf 'emulator-5556\tdevice\nR5CT\tdevice\n' > "$T/state"
+expect "에뮬레이터가 먼저 나열돼도" 0 run "$D" ensure
+[ "$out" = "R5CT" ] && ok "실기기를 고름" || bad "out=$out"
+echo "geny1" > "$T/qemu"
+printf 'geny1\tdevice\nR5CT\tdevice\n' > "$T/state"
+expect "이름이 emulator-가 아닌 가상 기기(qemu)" 0 run "$D" ensure
+[ "$out" = "R5CT" ] && ok "qemu 기기보다 실기기" || bad "out=$out"
+printf 'emulator-5556\tdevice\n' > "$T/state"
+expect "실기기가 없으면 켜져 있는 에뮬레이터" 0 run "$D" ensure
+[ "$out" = "emulator-5556" ] && ok "에뮬레이터 serial" || bad "out=$out"
+grep -qx "KIND virtual" "$T/err" && ok "에뮬레이터면 KIND virtual" || bad "KIND: $(cat "$T/err")"
+[ ! -f "$T/booted" ] && ok "켜져 있으면 부팅하지 않음" || bad "부팅함"
+rm -f "$T/qemu"
 
 echo "ensure — 기기 없음"
 : > "$T/state"; : > "$T/avds"
@@ -63,6 +80,7 @@ printf 'Pixel_A\nPixel_B\n' > "$T/avds"
 expect "AVD가 있으면 부팅" 0 run "$D" ensure
 [ "$out" = "emulator-5554" ] && ok "부팅한 serial 출력" || bad "out=$out"
 grep -q "BOOTED emulator-5554" "$T/err" && ok "stderr에 BOOTED" || bad "BOOTED 없음: $(cat "$T/err")"
+grep -qx "KIND virtual" "$T/err" && ok "부팅한 기기는 KIND virtual" || bad "KIND: $(cat "$T/err")"
 grep -q -- "-avd Pixel_A" "$T/booted" && ok "첫 AVD를 부팅" || bad "booted=$(cat "$T/booted")"
 grep -q -- "-no-window" "$T/booted" && ok "헤드리스" || bad "헤드리스 아님"
 : > "$T/state"; rm -f "$T/booted"

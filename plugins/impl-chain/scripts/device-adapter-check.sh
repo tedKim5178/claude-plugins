@@ -4,11 +4,12 @@
 #
 # Usage:
 #   device-adapter-check.sh [--out <dir>] [<어댑터 경로>]
-#       어댑터 경로가 없으면 프로필 `화면 확인.device_adapter`가 가리키는 어댑터 (키가 없으면 builtin:android-device)
+#       어댑터 경로가 없으면 프로필 `화면 확인.device_adapter`의 첫 어댑터 (키가 없으면 builtin:android-device).
+#       목록(우선순위)이면 어댑터마다 경로를 주고 따로 돌린다.
 #       --out: ui 출력·스크린샷을 남길 폴더 (없으면 임시 폴더 — 경로를 출력한다)
 #
 # 하는 일 (순서대로 — 기기를 실제로 조작한다):
-#   check → ensure → ui → screenshot → tap(1,1) → swipe(1,1→1,3) → 인자 부족 거부 → key home(선택) → cleanup
+#   check → ensure(+ KIND 줄) → ui → screenshot → tap(1,1) → swipe(1,1→1,3) → 인자 부족 거부 → key home(선택) → cleanup
 #   tap·swipe는 화면 구석의 무해한 좌표로 "명령이 전달되는지"만 본다 — 화면이 바뀌는지는 보지 않는다.
 #   `ui` 출력에 텍스트와 좌표가 실제로 들어 있는지는 형식이 자유라 기계로 판정하지 않는다 — 남긴 파일을 호출자가 읽고 확인한다.
 #
@@ -27,7 +28,8 @@ while [ $# -gt 0 ]; do
   esac
 done
 if [ -z "$ADAPTER" ]; then
-  ADAPTER="$("$HERE/impl-profile.sh" adapter "화면 확인.device_adapter")" || exit 64
+  ADAPTER="$("$HERE/impl-profile.sh" adapters | head -1)"
+  [ -n "$ADAPTER" ] || exit 64
 fi
 [ -x "$ADAPTER" ] || { echo "어댑터가 없거나 실행할 수 없음: $ADAPTER" >&2; exit 64; }
 [ -n "$OUT" ] || OUT="$(mktemp -d "${TMPDIR:-/tmp}/device-adapter-check.XXXXXX")"
@@ -71,7 +73,14 @@ case "$rc" in
     fi
     if [ "$BOOTED" = 1 ] && ! grep -qx "BOOTED $ID" "$OUT/device.err"; then
       fail ensure "stderr의 BOOTED 줄이 'BOOTED $ID' 꼴이 아님: $(grep "^BOOTED " "$OUT/device.err" | head -1)"
-    fi ;;
+    fi
+    # KIND — 선택. 있으면 real|virtual 이어야 한다 (visual-verifier가 실기기용 설치·mock 키를 고를 때 쓴다)
+    KIND="$(grep "^KIND " "$OUT/device.err" | head -1)"
+    case "$KIND" in
+      "KIND real"|"KIND virtual") pass kind "${KIND#KIND }" ;;
+      "") skip kind "KIND 줄 없음 (선택 — 없으면 실기기 전용 키 빌드.install_real·화면 확인.mock_skill_real을 쓸 수 없다)" ;;
+      *) fail kind "stderr의 KIND 줄은 'KIND real' 또는 'KIND virtual'이어야 함: $KIND" ;;
+    esac ;;
   3|4|5)
     skip ensure "기기를 확보하지 못함 (exit $rc): $(first_line "$OUT/device.err")"
     [ -s "$OUT/device.err" ] || fail ensure "exit $rc인데 stderr에 사유가 없음"

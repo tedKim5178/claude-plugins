@@ -15,9 +15,9 @@ description: verify=visual 인 todo를 프로필 `화면 확인.mode`의 수단(
 
 - **state_file**: `.impl-spec/{type}-{n}.json` — `visual_cases`(확인 계획), `verify == "visual"` 인 todo, `research_files`
 - **output_dir**: `.impl-spec/{type}-{n}.visual/`
-- **프로필**: `.claude/impl-chain/profile.md`를 직접 Read한다 — `화면 확인.*`, `빌드.install`
+- **프로필**: `.claude/impl-chain/profile.md`를 직접 Read한다 — `화면 확인.*`, `빌드.install`, `빌드.install_real`
 
-**기기는 기기 어댑터로만 다룬다.** 어댑터는 프로필 `화면 확인.device_adapter`가 정한다 (없으면 Android용 공용 어댑터). 계약: `${CLAUDE_PLUGIN_ROOT}/references/impl-profile-spec.md` "기기 어댑터".
+**기기는 기기 어댑터로만 다룬다.** 어댑터는 프로필 `화면 확인.device_adapter`가 정한다 (없으면 Android용 공용 어댑터, 여러 개면 우선순위 목록). 계약: `${CLAUDE_PLUGIN_ROOT}/references/impl-profile-spec.md` "기기 어댑터".
 플랫폼 도구(`adb`, `xcrun simctl` 등)를 직접 치지 않는다 — 어댑터가 바뀌면 그 명령은 틀린 기기를 건드리거나 실패한다. (mock 스킬이 자기 절차에서 쓰는 명령은 그 스킬을 따른다.)
 
 ## 절차
@@ -28,22 +28,27 @@ description: verify=visual 인 todo를 프로필 `화면 확인.mode`의 수단(
 - `device` / `adb`: mock 없이 진행 — 3단계를 건너뛰고, **서버 응답을 바꿔야만 볼 수 있는 케이스는 `MANUAL`** (사유: "mock 없음 — {필요한 서버 상태}")로 둔다
 
 ### 0. 기기 확보
-기기 도구가 PATH에 없을 수 있고 기기가 안 꽂혀 있을 수 있다 — 기기 어댑터로 해결한다:
+기기 도구가 PATH에 없을 수 있고 기기가 안 꽂혀 있을 수 있다 — 기기 어댑터로 해결한다. **실기기가 연결돼 있으면 실기기, 없으면 에뮬레이터·시뮬레이터**가 원칙이고, 그 순서는 어댑터 목록과 어댑터가 정한다:
 ```bash
-${CLAUDE_PLUGIN_ROOT}/scripts/impl-profile.sh adapter "화면 확인.device_adapter"      # stdout = 기기 어댑터 절대 경로
-{device_adapter} ensure 2> {output_dir}/device.err                                    # stdout = 기기 id. 연결 기기 없으면 에뮬레이터·시뮬레이터를 부팅
+${CLAUDE_PLUGIN_ROOT}/scripts/impl-profile.sh adapters        # stdout = 기기 어댑터 절대 경로, 우선순위 순서로 한 줄씩
+{어댑터 k} ensure 2> {output_dir}/device-{k}.err             # 첫 어댑터부터 — stdout = 기기 id
 ```
-- 이후 이 문서의 `{device_adapter}`는 첫 줄의 출력 경로를, `{id}`는 `ensure`의 출력을 **글자 그대로** 쓴다 (셸 변수는 다음 호출에 남지 않는다).
 - 어댑터 경로를 얻지 못하면(exit 0이 아님) 즉시 종료: `SKIPPED — 기기 어댑터 없음: {stderr 첫 줄}`.
+- 목록의 **앞에서부터** `ensure`를 실행한다 (k = 1, 2, …). exit 0이면 그 어댑터로 정하고 멈춘다 — 뒤의 어댑터는 실행하지 않는다.
+  exit 3(기기 도구 없음)·4(기기 없음)·5(시간 초과)면 `device-{k}.err` 첫 줄을 사유로 적어 두고 다음 어댑터로 간다.
+  **전부 실패하면** 그때 종료하고 반환: `SKIPPED — {어댑터마다 이름: 사유}`.
+- 정한 어댑터 경로가 이후 이 문서의 `{device_adapter}`, 그 `ensure` 출력이 `{id}`다 — **글자 그대로** 쓴다 (셸 변수는 다음 호출에 남지 않는다). 정한 어댑터의 err 파일을 `device.err`로 복사해 둔다.
+- `device.err`의 `KIND real|virtual`이 기기 종류다 (없으면 `unknown`). 1단계 설치 명령과 3단계 mock 스킬을 이걸로 고른다.
+- 앞 어댑터를 건너뛴 사유는 결과에 남긴다 (5-1 `device_fallback`). 특히 **실기기는 연결됐는데 실패**한 경우(WebDriverAgent가 안 뜸 등 — 사유에 기기 이름이 나온다)는 사람이 고칠 수 있는 문제라 꼭 적는다.
 - `device.err`에 `BOOTED {id}`가 있으면 이 에이전트가 띄운 기기다 → 6. 정리에서 `{device_adapter} cleanup {id}`.
-- `ensure`가 exit 3(기기 도구 없음)·4(기기 없음)·5(부팅 시간 초과)면 즉시 종료하고 반환: `SKIPPED — {device.err 첫 줄}`.
-- 어느 기기를 쓸지는 어댑터가 프로필에서 정한다 (Android: `화면 확인.avd` → 첫 AVD / iOS 시뮬레이터: `화면 확인.simulator` → 최신 런타임의 첫 iPhone / iOS 실기기: `화면 확인.device_udid` → USB로 연결된 첫 기기).
+- 어느 기기를 쓸지는 어댑터가 프로필에서 정한다 (Android: 연결된 실기기 → 켜져 있는 에뮬레이터 → `화면 확인.avd` → 첫 AVD 부팅 / iOS 시뮬레이터: `화면 확인.simulator` → 최신 런타임의 첫 iPhone / iOS 실기기: `화면 확인.device_udid` → USB로 연결된 첫 기기).
 - mock 스킬이 플랫폼 도구를 직접 쓰면(예: adb) `{device_adapter} check`의 출력(도구 경로)과 `{id}`를 그 스킬 절차에 넘긴다.
 - mock 스킬이 "대상 기기가 여럿이면 사용자에게 물어라"고 해도 묻지 않는다 — 대상은 항상 `{id}` 기기다 (실기기 어댑터면 그 실기기, 시뮬레이터 어댑터면 그 시뮬레이터). 스킬이 자기 채널을 열어야 하면(예: 실기기 포트 포워드) 그 스킬 절차대로 열고, 6. 정리에서 닫는다.
 
 ### 1. 설치
+설치 명령 = `KIND real`이고 프로필 `빌드.install_real`이 있으면 그것, 아니면 `빌드.install`. 명령 안의 `{id}`는 0단계의 `{id}`로 채운다.
 ```bash
-{프로필 빌드.install} 2>&1 | tail -5
+{설치 명령} 2>&1 | tail -5
 ```
 실패하면 `SKIPPED — 설치 실패: {한 줄}` 로 종료 (빌드 문제는 메인이 이미 컴파일로 검증했다).
 
@@ -56,7 +61,7 @@ ${CLAUDE_PLUGIN_ROOT}/scripts/impl-profile.sh adapter "화면 확인.device_adap
 Figma 기준 이미지는 `.impl-spec/{type}-{n}.figma/screens/{nodeId}.png`, 요소·구조 기준은 state_file `ui_specs[].file` (없으면 `…/figma/ui-spec/*.md`).
 
 ### 3. 케이스별 서버 상태 만들기 — mock 스킬 (`device-mock`·`adb-mock`만)
-mock 스킬(`{프로필 화면 확인.mock_skill}` — 레포 `.claude/skills/` 또는 `~/.claude/skills/`)의 SKILL.md 절차를 따른다 (corpus에서 실제 응답을 복사해 필요한 필드만 바꾼다).
+mock 스킬 = `KIND real`이고 프로필 `화면 확인.mock_skill_real`이 있으면 그것, 아니면 `화면 확인.mock_skill` (레포 `.claude/skills/` 또는 `~/.claude/skills/`). 그 SKILL.md 절차를 따른다 (corpus에서 실제 응답을 복사해 필요한 필드만 바꾼다).
 - 네가 push한 mock 파일 목록을 기록해 두고, **종료 전에 전부 삭제한다** (다른 작업에 mock이 남지 않도록).
 - 서버 상태를 바꿀 필요가 없는 케이스는 mock 없이 진행.
 
@@ -102,7 +107,8 @@ ui-spec이 있는 화면이면 케이스마다 **ui-spec 레이아웃 트리·�
 케이스별 판정을 `{output_dir}/results.json`에 쓴다:
 ```json
 {
-  "device": "{id} ({연결 기기 | 부팅한 기기 이름})", "build": "{프로필 빌드.install}", "commit": "{git rev-parse --short HEAD}",
+  "device": "{id} ({실기기 | 에뮬레이터·시뮬레이터} — {연결 기기 | 부팅한 기기 이름})", "build": "{1단계에서 쓴 설치 명령}",
+  "device_fallback": ["건너뛴 어댑터: 사유 — 예: ios-real-device: USB로 연결된 iOS 기기가 없습니다 (없으면 빈 배열)"], "commit": "{git rev-parse --short HEAD}",
   "entry": "화면에 들어간 방법 — 실제 흐름인지, mock·우회 진입인지를 사람이 알 수 있게 한두 문장",
   "mock_files": ["push한 mock 파일명"],
   "results": [{"case_id": "V1", "verdict": "PASS", "evidence": "ui 텍스트 또는 관찰", "screenshot": "V1.png",
@@ -132,7 +138,8 @@ push한 mock 파일을 전부 삭제하고(파일이 아니라 메모리에 넣�
 
 ```
 ### Visual 결과 — {type} #{n}
-기기: {id} ({연결 기기 | 부팅한 기기 이름 — 종료함}) / 빌드: {프로필 빌드.install}
+기기: {id} ({실기기 | 에뮬레이터·시뮬레이터} — {연결 기기 | 부팅한 기기 이름 — 종료함}) / 빌드: {1단계 설치 명령}
+건너뛴 어댑터: {device_fallback — 없으면 줄 생략}
 
 리포트: {output_dir}/report.html — {visual-report.py의 REPORT 줄: PASS a / FAIL b / MANUAL c / NOT_RUN d}
 진입: {results.json의 entry}
@@ -163,4 +170,4 @@ mock 삭제: {파일 목록 또는 "push한 mock 없음"}
 - 종료 시 push한 mock 파일을 반드시 삭제
 - 계획 케이스를 임의로 빼지 않는다. 스크린샷 없는 PASS를 보고하지 않는다
 - 요소 유무만 보고 PASS하지 않는다 — ui-spec이 있는 화면은 레이아웃 위치(5-0)를 재서 맞아야 PASS
-- `SKIPPED`는 0-0·0·1 단계의 조건(모드, 기기 어댑터 없음, `ensure` exit 3·4·5, 설치 실패)에서만 낸다 — 플랫폼 도구를 직접 쳐 보고 판단하지 않는다
+- `SKIPPED`는 0-0·0·1 단계의 조건(모드, 기기 어댑터 없음, 목록의 모든 어댑터 `ensure` exit 3·4·5, 설치 실패)에서만 낸다 — 플랫폼 도구를 직접 쳐 보고 판단하지 않는다

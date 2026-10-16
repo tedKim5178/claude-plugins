@@ -85,6 +85,7 @@ expect "포워드·WDA가 이미 응답하면 그대로" 0 run "$D" ensure
 [ "$out" = "UDID-A" ] && ok "첫 USB 기기" || bad "out=$out"
 [ ! -f "$T/iproxy" ] && ok "포워드를 새로 열지 않음" || bad "iproxy 실행함"
 grep -q BOOTED "$T/err" && bad "BOOTED를 냄" || ok "BOOTED 없음 (정리할 것 없음)"
+grep -qx "KIND real" "$T/err" && ok "KIND real" || bad "KIND: $(cat "$T/err")"
 
 echo "ensure — 포워드만 열면 됨 (WDA는 기기에 떠 있음)"
 reset; touch "$T/wda-on-device"
@@ -92,6 +93,7 @@ expect "포워드를 열고 통과" 0 run "$D" ensure UDID-B
 [ "$out" = "UDID-B" ] && ok "인자로 지정한 기기" || bad "out=$out"
 grep -qx -- "-u UDID-B 8100:8100" "$T/iproxy" && ok "그 기기로 8100 포워드" || bad "iproxy=$(cat "$T/iproxy" 2>/dev/null)"
 grep -q "BOOTED UDID-B" "$T/err" && ok "stderr에 BOOTED" || bad "BOOTED 없음: $(cat "$T/err")"
+grep -qx "KIND real" "$T/err" && ok "포워드를 연 경우도 KIND real" || bad "KIND: $(cat "$T/err")"
 
 echo "ensure — WDA를 띄워야 함"
 reset

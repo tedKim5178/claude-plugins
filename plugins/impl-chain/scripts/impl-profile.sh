@@ -7,7 +7,9 @@
 #   impl-profile.sh adapter <이슈.spec_adapter|화면 확인.device_adapter>   실행할 어댑터 절대 경로 출력
 #       값 `builtin:gh-spec-issue` / `builtin:android-device` / `builtin:ios-device` / `builtin:ios-real-device` → 이 스크립트와 같은 폴더의 공용 어댑터
 #       (예전 값 `.claude/scripts/gh-spec-issue.sh`도 builtin으로 본다) / 그 외 → 레포 루트 기준 경로 (레포 전용 어댑터)
-#       `화면 확인.device_adapter`는 키가 없으면 `builtin:android-device`로 본다
+#       `화면 확인.device_adapter`는 키가 없으면 `builtin:android-device`로 본다. 값이 목록(쉼표 구분)이면 adapters를 쓴다 (exit 1)
+#   impl-profile.sh adapters   `화면 확인.device_adapter`의 기기 어댑터 절대 경로를 우선순위 순서로 한 줄씩 출력
+#       예: `builtin:ios-real-device, builtin:ios-device` → 실기기 어댑터, 시뮬레이터 어댑터 (visual-verifier가 앞에서부터 ensure를 시도)
 #
 # 프로필 경로: $IMPL_PROFILE (impl-setup 검증용) → 없으면 {repo}/.claude/impl-chain/profile.md
 # 프로필 안의 상대 경로는 레포 루트 기준이다. 이 스크립트는 레포 밖(플러그인)에 있어도 된다.
@@ -44,14 +46,30 @@ pget() {
   ' "$PROFILE"
 }
 
-# $1 = 어댑터 키 → 절대 경로 (stdout). 이름 해석 실패면 return 1, 키 없음이면 return 2
-# 두 번째 줄(stderr 아님)로 builtin 이름을 알려주지 않는다 — builtin_name()을 쓴다
-resolve_adapter() {
-  local v name
+# $1 = 어댑터 키 → 값 (stdout). 기기 어댑터 키는 없으면 기본값. 키 없음이면 return 2
+adapter_value() {
+  local v
   if ! v=$(pget "$1") || [ -z "$v" ]; then
     [ "$1" = "$DEVICE_ADAPTER_KEY" ] || return 2
     v=$DEVICE_ADAPTER_DEFAULT
   fi
+  echo "$v"
+}
+# 기기 어댑터 값 → 항목을 한 줄씩 (쉼표로 나누고 앞뒤 공백·백틱 제거, 빈 항목 제외)
+device_entries() {
+  adapter_value "$DEVICE_ADAPTER_KEY" | tr ',' '\n' | sed 's/^[[:space:]`]*//; s/[[:space:]`]*$//' | grep -v '^$'
+}
+# $1 = 어댑터 키 → 절대 경로 (stdout). 이름 해석 실패면 return 1, 키 없음이면 return 2
+# 두 번째 줄(stderr 아님)로 builtin 이름을 알려주지 않는다 — builtin_name()을 쓴다
+resolve_adapter() {
+  local v
+  v=$(adapter_value "$1") || return 2
+  case "$v" in *,*) echo "$1 은 목록이다 ($v) — impl-profile.sh adapters 로 하나씩 받는다" >&2; return 1 ;; esac
+  resolve_value "$v"
+}
+# $1 = 어댑터 값 하나 → 절대 경로. 모르는 builtin이면 return 1
+resolve_value() {
+  local v=$1 name
   name=$(builtin_name "$v")
   if [ -n "$name" ]; then
     case " $BUILTIN_ADAPTERS " in
@@ -77,6 +95,19 @@ cmd_adapter() {
   local p; p=$(resolve_adapter "$1"); case $? in 0) ;; 2) echo "ERROR: 키 없음: $1" >&2; exit 2 ;; *) exit 1 ;; esac
   [ -x "$p" ] || die "$1 어댑터가 없거나 실행할 수 없음: $p"
   echo "$p"
+}
+
+cmd_adapters() {
+  [ $# -eq 0 ] || die "usage: impl-profile.sh adapters"
+  [ -f "$PROFILE" ] || die "프로필 없음: $PROFILE"
+  local e p out=()
+  while IFS= read -r e; do
+    p=$(resolve_value "$e") || exit 1
+    [ -x "$p" ] || die "$DEVICE_ADAPTER_KEY 의 어댑터가 없거나 실행할 수 없음: $e ($p)"
+    out+=("$p")
+  done < <(device_entries)
+  [ ${#out[@]} -gt 0 ] || die "$DEVICE_ADAPTER_KEY 값이 비어 있음"
+  printf '%s\n' "${out[@]}"
 }
 
 cmd_get() {
@@ -162,13 +193,18 @@ cmd_check() {
   case "$(mode "화면 확인")" in
     device|device-mock|adb|adb-mock)
       need "빌드.install"
-      # 기기 어댑터 — 키가 없으면 기본값. 해석되고 실행 가능해야 한다
-      local dp
-      if dp=$(resolve_adapter "$DEVICE_ADAPTER_KEY" 2>&1); then
-        [ -x "$dp" ] || problems+=("$DEVICE_ADAPTER_KEY 가 가리키는 어댑터가 없거나 실행 불가: $dp")
-      else
-        problems+=("$DEVICE_ADAPTER_KEY: $dp")
-      fi ;;
+      # 기기 어댑터 — 키가 없으면 기본값. 목록이면 우선순위 순서. 항목마다 해석되고 실행 가능해야 한다
+      local de dp seen=" "
+      while IFS= read -r de; do
+        case "$seen" in *" $de "*) problems+=("$DEVICE_ADAPTER_KEY 에 같은 어댑터가 두 번: $de"); continue ;; esac
+        seen="$seen$de "
+        if dp=$(resolve_value "$de" 2>&1); then
+          [ -x "$dp" ] || problems+=("$DEVICE_ADAPTER_KEY 가 가리키는 어댑터가 없거나 실행 불가: $de")
+        else
+          problems+=("$DEVICE_ADAPTER_KEY: $dp")
+        fi
+      done < <(device_entries)
+      [ "$seen" != " " ] || problems+=("$DEVICE_ADAPTER_KEY 값이 비어 있음") ;;
   esac
   if [ "$(mode "화면 확인")" = device-mock ] || [ "$(mode "화면 확인")" = adb-mock ]; then
     # mock 스킬은 레포(.claude/skills) 또는 사용자 스킬 폴더(~/.claude/skills)에 있어야 한다
@@ -176,6 +212,10 @@ cmd_check() {
       && { [ -f "$ROOT/.claude/skills/$ms/SKILL.md" ] || [ -f "$HOME/.claude/skills/$ms/SKILL.md" ] \
            || problems+=("화면 확인.mock_skill 스킬 없음: $ms (.claude/skills/ 또는 ~/.claude/skills/ — mock 없이 기기로만 볼 거면 mode: device)"); } \
       || problems+=("필수 키 없음: 화면 확인.mock_skill")
+    # 선택: 실기기일 때만 쓰는 mock 스킬
+    local msr; msr=$(pget "화면 확인.mock_skill_real" 2>/dev/null) && [ -n "$msr" ] \
+      && { [ -f "$ROOT/.claude/skills/$msr/SKILL.md" ] || [ -f "$HOME/.claude/skills/$msr/SKILL.md" ] \
+           || problems+=("화면 확인.mock_skill_real 스킬 없음: $msr (.claude/skills/ 또는 ~/.claude/skills/)"); }
   fi
 
   # 스킬별
@@ -197,5 +237,6 @@ case "${1:-}" in
   get)     shift; cmd_get "$@" ;;
   check)   shift; cmd_check "$@" ;;
   adapter) shift; cmd_adapter "$@" ;;
-  *)       die "usage: impl-profile.sh get <섹션>.<키> | check [--for analyze-spec|start-work] | adapter <키>" ;;
+  adapters) shift; cmd_adapters "$@" ;;
+  *)       die "usage: impl-profile.sh get <섹션>.<키> | check [--for analyze-spec|start-work] | adapter <키> | adapters" ;;
 esac

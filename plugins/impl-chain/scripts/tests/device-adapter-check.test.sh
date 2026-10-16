@@ -30,6 +30,8 @@ case "\${1:-}" in
           [ "\$B" = ensure-empty ] && exit 0
           [ "\$B" = booted ] && echo "BOOTED DEV1" >&2
           [ "\$B" = booted-wrong ] && echo "BOOTED OTHER" >&2
+          [ "\$B" = kind-real ] && echo "KIND real" >&2
+          [ "\$B" = kind-bad ] && echo "KIND phone" >&2
           echo DEV1 ;;
   ui)     [ "\$B" = ui-fail ] && { echo "못 읽음" >&2; exit 1; }; [ "\$B" = ui-empty ] || echo '<node text="확인" bounds="[0,0][10,10]"/>' ;;
   screenshot) [ "\$B" = shot-fail ] && exit 1; if [ "\$B" = shot-notpng ]; then echo hello > "\$3"; else printf '\\x89PNG\\r\\n' > "\$3"; fi ;;
@@ -56,6 +58,9 @@ expect "이 검사가 띄운 기기" 0 run booted
 has "이 검사가 띄움" "BOOTED 인식"
 expect "key home 미지원은 통과 (선택 기능)" 0 run no-key
 has "SKIP key" "SKIP key"
+has "SKIP kind" "KIND 줄 없음은 SKIP (선택)"
+expect "KIND real" 0 run kind-real
+has "PASS kind — real" "KIND 인식"
 
 echo "환경 미충족 — exit 2"
 expect "도구 없음" 2 run no-tool
@@ -71,6 +76,8 @@ expect "ensure 실패 코드가 3·4·5가 아님" 1 run ensure-1
 expect "ensure가 id를 안 냄" 1 run ensure-empty
 expect "ensure 실패에 사유 없음" 1 run no-device-silent
 expect "BOOTED 줄의 id가 다름" 1 run booted-wrong
+expect "KIND 값이 real|virtual이 아님" 1 run kind-bad
+has "FAIL kind" "KIND 오류 보고"
 expect "ui 실패" 1 run ui-fail
 has "RESULT contract-fail" "RESULT contract-fail"
 grep -qx "cleanup DEV1" "$T/calls" && ok "실패해도 cleanup까지 감" || bad "cleanup 안 함"
@@ -94,6 +101,11 @@ printf -- '- device_adapter: .claude/impl-chain/adapters/dev.sh\n' >> "$T/repo/.
 ( cd "$T/repo" && "$C" --out "$T/o2" ) > "$T/out" 2> "$T/err"; rc=$?
 [ "$rc" = 0 ] && ok "인자 없으면 프로필의 device_adapter" || bad "exit $rc: $(cat "$T/out" "$T/err")"
 has "adapters/dev.sh" "그 어댑터를 검사"
+cp "$A" "$T/repo/.claude/impl-chain/adapters/dev2.sh"
+sed -i.bak 's#^- device_adapter: .*#- device_adapter: .claude/impl-chain/adapters/dev2.sh, .claude/impl-chain/adapters/dev.sh#' "$T/repo/.claude/impl-chain/profile.md"
+( cd "$T/repo" && "$C" --out "$T/o3" ) > "$T/out" 2> "$T/err"; rc=$?
+[ "$rc" = 0 ] && ok "목록이면 첫 어댑터" || bad "exit $rc: $(cat "$T/out" "$T/err")"
+has "adapters/dev2.sh" "목록의 첫 어댑터를 검사"
 
 echo
 [ "$FAIL" = 0 ] && echo "ALL PASS" || { echo "FAILED"; exit 1; }

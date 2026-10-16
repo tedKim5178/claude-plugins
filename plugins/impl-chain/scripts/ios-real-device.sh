@@ -18,7 +18,7 @@
 # Usage:
 #   ios-real-device.sh check                → 도구가 있으면 iproxy 경로 출력 (기기·WDA 상태는 보지 않는다)
 #   ios-real-device.sh ensure [udid]        → 쓸 기기 UDID 출력. 포트 포워드를 열고 WDA가 응답할 때까지 기다린다 (필요하면 wda_start 실행).
-#       이 어댑터가 포워드나 WDA를 띄웠으면 stderr에 `BOOTED {udid}` — 호출자는 끝날 때 cleanup으로 정리한다.
+#       이 어댑터가 포워드나 WDA를 띄웠으면 stderr에 `BOOTED {udid}` — 호출자는 끝날 때 cleanup으로 정리한다. stderr에 `KIND real` 한 줄.
 #       WDA 대기 시간: $IOS_WDA_START_TIMEOUT초 (기본 180)
 #   ios-real-device.sh cleanup <udid>       → ensure가 띄운 포트 포워드·WDA 프로세스 종료 (기기와 원래 떠 있던 WDA는 건드리지 않는다)
 #   ios-real-device.sh ui <udid>                              → 화면 요소 트리(WDA JSON — label·rect) 출력. 좌표 단위는 포인트
@@ -109,7 +109,7 @@ case "${1:-}" in
     fi
     [ -n "$UDID" ] || { echo "USB로 연결된 iOS 기기가 없습니다 — 케이블 연결과 '이 컴퓨터 신뢰'를 확인해주세요" >&2; exit 4; }
 
-    if status_ready; then echo "$UDID"; exit 0; fi   # 포워드와 WDA가 이미 떠 있다 — 그대로 쓴다
+    if status_ready; then echo "KIND real" >&2; echo "$UDID"; exit 0; fi   # 포워드와 WDA가 이미 떠 있다 — 그대로 쓴다
 
     mkdir -p "$STATE_DIR" && : > "$(pids_file "$UDID")"
     nohup iproxy -u "$UDID" "$PORT:8100" > /dev/null 2>&1 &
@@ -137,6 +137,7 @@ case "${1:-}" in
       fi
     fi
     echo "BOOTED $UDID" >&2
+    echo "KIND real" >&2
     echo "$UDID"
     ;;
 

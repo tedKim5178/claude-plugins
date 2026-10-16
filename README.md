@@ -45,7 +45,7 @@ impl-setup                  레포 프로필 생성 (레포마다 처음 한 번
 ## 전제
 
 - **GitHub** 이슈·PR + `gh` CLI 로그인
-- 화면 확인은 **Android**(adb·에뮬레이터)가 기본이다. **iOS**는 프로필에 기기 어댑터를 적는다 — 시뮬레이터 `device_adapter: builtin:ios-device`(Xcode + [AXe](https://github.com/cameroncooke/AXe): `brew install cameroncooke/axe/axe`) / USB 실기기 `device_adapter: builtin:ios-real-device`(libimobiledevice + 기기에서 도는 [WebDriverAgent](https://github.com/appium/WebDriverAgent)). 그 외 플랫폼은 레포 전용 기기 어댑터를 적거나 화면 확인 없이 `none`으로 쓴다
+- 화면 확인은 **실기기가 연결돼 있으면 실기기, 없으면 에뮬레이터·시뮬레이터**로 한다. **Android**(adb·에뮬레이터)가 기본이다. **iOS**는 프로필에 기기 어댑터를 적는다 — 추천 `device_adapter: builtin:ios-real-device, builtin:ios-device`(우선순위 목록, 레포에 어댑터를 만들 필요 없음) / 시뮬레이터만 `device_adapter: builtin:ios-device`(Xcode + [AXe](https://github.com/cameroncooke/AXe): `brew install cameroncooke/axe/axe`) / USB 실기기만 `device_adapter: builtin:ios-real-device`(libimobiledevice + 기기에서 도는 [WebDriverAgent](https://github.com/appium/WebDriverAgent)). 그 외 플랫폼은 레포 전용 기기 어댑터를 적거나 화면 확인 없이 `none`으로 쓴다
 - 도구: `git`, `gh`, `jq`, `python3`, `bash` 3.2+
 - Figma 연동: [Figma 공식 플러그인](https://www.figma.com/developers/mcp) (MCP) 로그인
 - (선택) 서버 계약을 proto 레포로 관리하면 proto 의존성 확인

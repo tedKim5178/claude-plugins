@@ -73,7 +73,8 @@ AskUserQuestion으로 묻는다 (한 번에 최대 4개, 후보를 선택지로,
 - **새 에셋 위치** (`asset_target`): drawable·asset 폴더가 둘 이상 모듈에 있으면 어느 모듈에 둘지 (분포를 보여주고)
 - **화면 확인** (`화면 확인.mode` + 기기 어댑터): 제안서의 "화면 확인 상황" 절을 보고 묻는다.
   - 모드: `device-mock`(서버 응답 mock 스킬이 있을 때 — 레포·`~/.claude/skills/`에서 찾은 후보를 보여주고) / `device`(기기로만, 서버 상태가 필요한 케이스는 수동) / `none`.
-  - 기기 어댑터 후보가 둘 이상이면 어느 쪽으로 볼지 (예: iOS — 시뮬레이터 `builtin:ios-device` / USB 실기기 `builtin:ios-real-device`. 실기기는 USB 연결과 WebDriverAgent 서명이 필요하다는 점, mock 스킬이 그 대상을 지원하는지를 description에).
+  - 기기 어댑터 후보가 둘 이상이면 어느 쪽으로 볼지. iOS면 **`실기기 우선, 없으면 시뮬레이터`(`builtin:ios-real-device, builtin:ios-device`)를 첫 선택지(추천)**로 — 실기기가 꽂혀 있으면 실기기, 아니면 자동으로 시뮬레이터. 나머지 선택지: 시뮬레이터만 / 실기기만. 실기기는 USB 연결과 WebDriverAgent 서명(Mac마다 한 번)이 필요하다는 점, mock 스킬이 각 대상을 지원하는지를 description에. Android는 공용 어댑터 하나가 이미 실기기 → 에뮬레이터 순서라 묻지 않는다.
+  - 목록을 고르면: 실기기와 가상 기기에서 **설치 명령이 다른지**(`빌드.install_real` — iOS는 보통 다르다: 기기용 빌드 + `devicectl`)와 **mock을 넣는 통로가 다른지**(`화면 확인.mock_skill_real`)를 제안서 근거로 확인하고, 다르면 값을 제안해 함께 승인받는다.
   - 어댑터가 읽는 키 중 관찰로 못 정한 것 (예: 실기기 `wda_start` — WebDriverAgent 프로젝트 경로를 물어서 채운다. 모르면 생략).
   - 맞는 공용 어댑터가 없는 플랫폼·도구면: "레포 전용 어댑터를 만들어 검증" / "`none`으로 두기".
   어댑터를 정하고 만드는 일은 Step 4-1에서 한다 — 여기서는 방향만 받는다.
@@ -103,8 +104,9 @@ GitHub이 아니면 계약에 맞춘 어댑터를 `{out}/adapters/`에 만들고
 | 상황 (제안서 "화면 확인 상황") | 어댑터 | 프로필에 적는 값 |
 |------|--------|-----------------|
 | Android 레포 | 공용 `android-device.sh` | 키 생략 (기본값) |
-| iOS 레포 — 시뮬레이터로 본다 | 공용 `ios-device.sh` | `builtin:ios-device` (+ 필요하면 `simulator`) |
-| iOS 레포 — USB 실기기로 본다 | 공용 `ios-real-device.sh` | `builtin:ios-real-device` (+ `wda_start` 등) |
+| iOS 레포 — 실기기 우선, 없으면 시뮬레이터 (추천) | 공용 `ios-real-device.sh`, `ios-device.sh` | `builtin:ios-real-device, builtin:ios-device` (+ `wda_start`, `simulator`, 다르면 `빌드.install_real`·`mock_skill_real`) |
+| iOS 레포 — 시뮬레이터로만 본다 | 공용 `ios-device.sh` | `builtin:ios-device` (+ 필요하면 `simulator`) |
+| iOS 레포 — USB 실기기로만 본다 | 공용 `ios-real-device.sh` | `builtin:ios-real-device` (+ `wda_start` 등) |
 | 그 외 (다른 플랫폼, 공용 어댑터가 쓰는 도구를 쓸 수 없는 환경) | 2)로 | 레포 상대 경로 |
 
 mock 스킬이 있으면 그 스킬이 다루는 대상과 **짝이 맞는** 어댑터를 고른다 (스킬이 시뮬레이터 파일 경로만 다루는데 실기기 어댑터를 고르면 mock을 넣을 수 없다). 스킬이 쓰는 포트·도구와 어댑터의 것이 겹치면 어댑터 키로 피한다 (예: `wda_port`).
@@ -117,7 +119,7 @@ mock 스킬이 있으면 그 스킬이 다루는 대상과 **짝이 맞는** 어
 - 도구를 대신 설치하지 않는다 — 없으면 설치 방법을 보여주고 사용자가 설치한 뒤 이어간다.
 - mock 스킬은 **참고만** 한다: 플랫폼·대상(에뮬레이터/실기기)·쓰는 포트를 알려줄 뿐, 화면 읽기·터치 방법은 스킬에 없다.
 
-**3) 검사한다 — 공용이든 새로 만든 것이든, 프로필에 적기 전에**
+**3) 검사한다 — 공용이든 새로 만든 것이든, 프로필에 적기 전에** (목록이면 어댑터마다 따로)
 
 ```bash
 ${CLAUDE_PLUGIN_ROOT}/scripts/device-adapter-check.sh --out .impl-spec/setup/device-check {어댑터 절대 경로}
@@ -130,6 +132,7 @@ ${CLAUDE_PLUGIN_ROOT}/scripts/device-adapter-check.sh --out .impl-spec/setup/dev
 | 1 (`contract-fail`) | 어댑터가 계약을 어김 | 새로 만든 어댑터면 `FAIL` 줄대로 고치고 다시 (3회까지). 공용 어댑터면 고치지 않는다 — 출력 그대로 보고하고 `none`으로 둘지 묻는다 |
 | 2 (`env-unavailable`) | 도구·기기가 없어 검사하지 못함 | `SKIP` 줄의 사유(설치 방법, 기기 연결)를 그대로 보여주고 묻는다: "준비 후 다시 검사" / "검사 없이 적기 — 보고에 **미검증**으로 남김" / "`none`으로 두기" |
 
+목록이면 어댑터마다 위 표대로 처리한다. 실기기 어댑터가 `env-unavailable`(지금 기기가 안 꽂혀 있음 등)이어도 시뮬레이터 어댑터가 통과했으면, 목록으로 적되 실기기 쪽을 보고에 **미검증**으로 남기는 선택지를 준다 — 실기기가 없으면 실행 때 자동으로 시뮬레이터로 넘어가므로 막히지 않는다.
 검사를 통과하지 못한 어댑터를 통과한 것처럼 적지 않는다. 미검증으로 적었으면 Step 6 보고의 "확인 필요"에 남긴다.
 
 ### 5. 쓰기 + 검증

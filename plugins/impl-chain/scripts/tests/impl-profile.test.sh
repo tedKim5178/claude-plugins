@@ -128,6 +128,29 @@ expect_exit "알 수 없는 builtin 기기 어댑터 실패" 1 env IMPL_PROFILE=
 F=$(variant dev-missing-none <<< 's/^- mode: adb-mock$/- mode: none/; s/^- mock_skill: .*/- device_adapter: .claude\/impl-chain\/adapters\/nope.sh/; /^- install: /d')
 expect_exit "mode none이면 기기 어댑터를 검사하지 않음" 0 env IMPL_PROFILE="$F" $P check
 
+echo "기기 어댑터 — 우선순위 목록"
+[ "$($P adapters)" = "$SCRIPTS/android-device.sh" ] && ok "adapters — 키 없으면 기본 하나" || bad "adapters 기본: $($P adapters 2>&1)"
+F=$(variant dev-list <<< 's/^- mock_skill: .*/&\n- device_adapter: builtin:ios-real-device, `builtin:ios-device`/')
+[ "$(env IMPL_PROFILE="$F" $P adapters | tr '\n' ' ')" = "$SCRIPTS/ios-real-device.sh $SCRIPTS/ios-device.sh " ] && ok "목록 순서대로 (공백·백틱 정리)" || bad "adapters 목록: $(env IMPL_PROFILE="$F" $P adapters 2>&1)"
+expect_exit "목록 check 통과" 0 env IMPL_PROFILE="$F" $P check
+expect_exit "목록인데 adapter(단수)는 exit 1" 1 env IMPL_PROFILE="$F" $P adapter "화면 확인.device_adapter"
+grep -q "adapters" "$T/err" && ok "adapters 안내" || bad "안내 없음: $(cat "$T/err")"
+F=$(variant dev-list-bad <<< 's/^- mock_skill: .*/&\n- device_adapter: builtin:ios-real-device, builtin:nope/')
+expect_exit "목록에 모르는 builtin" 1 env IMPL_PROFILE="$F" $P check
+grep -q "builtin:nope" "$T/err" && ok "틀린 항목 보고" || bad "보고: $(cat "$T/err")"
+expect_exit "adapters도 실패" 1 env IMPL_PROFILE="$F" $P adapters
+F=$(variant dev-list-dup <<< 's/^- mock_skill: .*/&\n- device_adapter: builtin:ios-device, builtin:ios-device/')
+expect_exit "같은 어댑터 두 번" 1 env IMPL_PROFILE="$F" $P check
+F=$(variant dev-list-empty <<< 's/^- mock_skill: .*/&\n- device_adapter: ,/')
+expect_exit "빈 목록" 1 env IMPL_PROFILE="$F" $P check
+
+echo "실기기 전용 키"
+F=$(variant real-keys <<< 's/^- mock_skill: .*/&\n- mock_skill_real: fake-mock/')
+expect_exit "mock_skill_real 있는 스킬이면 통과" 0 env IMPL_PROFILE="$F" $P check
+F=$(variant real-keys-bad <<< 's/^- mock_skill: .*/&\n- mock_skill_real: no-such-mock/')
+expect_exit "mock_skill_real 스킬 없으면 실패" 1 env IMPL_PROFILE="$F" $P check
+grep -q "mock_skill_real" "$T/err" && ok "mock_skill_real 보고" || bad "보고: $(cat "$T/err")"
+
 echo "check — 그 외 변형"
 F=$(variant adb-no-install <<< 's/^- mode: adb-mock$/- mode: adb/; /^- mock_skill: /d; /^- install: /d')
 expect_exit "adb 모드도 install 필수" 1 env IMPL_PROFILE="$F" $P check

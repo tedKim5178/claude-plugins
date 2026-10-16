@@ -5,9 +5,10 @@
 # Usage:
 #   android-device.sh check            → 기기 도구(adb)를 쓸 수 있으면 그 경로 출력 (`adb`도 같은 동작 — mock 스킬이 adb를 직접 부를 때 쓴다)
 #       찾는 순서: PATH → $ANDROID_HOME → $ANDROID_SDK_ROOT → ~/Library/Android/sdk → ~/Android/Sdk
-#   android-device.sh ensure [avd]     → 쓸 기기 serial 출력 (연결된 기기 중 state=device인 첫 번째)
-#       없으면 AVD를 헤드리스로 부팅한다: 인자 → 프로필 `화면 확인.avd` → `emulator -list-avds` 첫 번째.
+#   android-device.sh ensure [avd]     → 쓸 기기 serial 출력. 연결된 기기(state=device) 중 **실기기를 먼저**, 없으면 켜져 있는 에뮬레이터
+#       둘 다 없으면 AVD를 헤드리스로 부팅한다: 인자 → 프로필 `화면 확인.avd` → `emulator -list-avds` 첫 번째.
 #       부팅했으면 stderr에 `BOOTED {serial}` — 호출자는 끝날 때 cleanup으로 정리한다.
+#       stderr에 `KIND real|virtual` 한 줄 — 고른 기기가 실기기인지 에뮬레이터인지
 #       부팅 대기 시간: $ANDROID_DEVICE_BOOT_TIMEOUT초 (기본 180)
 #   android-device.sh cleanup <serial> → ensure가 부팅한 에뮬레이터 종료 (emulator-* 만 — 실기기는 건드리지 않는다)
 #   android-device.sh ui <serial>                      → 화면 요소 트리(uiautomator XML — text·bounds) 출력
@@ -34,7 +35,20 @@ ADB="$(find_adb)" || { echo "adb를 찾지 못했습니다 — Android SDK 경�
 SDK="$(cd "$(dirname "$ADB")/.." && pwd)"
 EMULATOR="$SDK/emulator/emulator"
 
-first_device() { "$ADB" devices | awk 'NR>1 && $2=="device" {print $1; exit}'; }
+# 에뮬레이터인지 — serial이 emulator-* 이거나 커널이 qemu (Genymotion 등 다른 이름의 가상 기기 포함)
+is_virtual() {
+  case "$1" in emulator-*) return 0 ;; esac
+  [ "$("$ADB" -s "$1" shell getprop ro.kernel.qemu 2>/dev/null | tr -d '\r')" = 1 ]
+}
+# 연결된 기기 중 실기기를 먼저, 없으면 첫 가상 기기
+first_device() {
+  local s virt=""
+  for s in $("$ADB" devices | awk 'NR>1 && $2=="device" {print $1}'); do
+    if is_virtual "$s"; then [ -n "$virt" ] || virt=$s; else echo "$s"; return; fi
+  done
+  [ -z "$virt" ] || echo "$virt"
+}
+kind_of() { if is_virtual "$1"; then echo virtual; else echo real; fi; }
 
 case "${1:-}" in
   check|adb)
@@ -75,7 +89,7 @@ case "${1:-}" in
 
   ensure)
     SERIAL="$(first_device)"
-    if [ -n "$SERIAL" ]; then echo "$SERIAL"; exit 0; fi
+    if [ -n "$SERIAL" ]; then echo "KIND $(kind_of "$SERIAL")" >&2; echo "$SERIAL"; exit 0; fi
 
     [ -x "$EMULATOR" ] || { echo "연결된 기기가 없고 emulator도 없습니다 ($EMULATOR)" >&2; exit 4; }
     AVDS="$("$EMULATOR" -list-avds 2>/dev/null)"
@@ -96,6 +110,7 @@ case "${1:-}" in
       SERIAL="$("$ADB" devices | awk 'NR>1 && $1 ~ /^emulator-/ && $2=="device" {print $1; exit}')"
       if [ -n "$SERIAL" ] && [ "$("$ADB" -s "$SERIAL" shell getprop sys.boot_completed 2>/dev/null | tr -d '\r')" = 1 ]; then
         echo "BOOTED $SERIAL" >&2
+        echo "KIND virtual" >&2
         echo "$SERIAL"
         exit 0
       fi

@@ -11,7 +11,7 @@
 #       axe 찾는 순서: PATH → /opt/homebrew/bin → /usr/local/bin
 #   ios-device.sh ensure [name|udid]   → 쓸 시뮬레이터 UDID 출력 (부팅돼 있는 것 중 첫 번째)
 #       없으면 부팅한다(창 없이): 인자 → 프로필 `화면 확인.simulator` → 최신 iOS 런타임의 첫 iPhone.
-#       부팅했으면 stderr에 `BOOTED {udid}` — 호출자는 끝날 때 cleanup으로 정리한다.
+#       부팅했으면 stderr에 `BOOTED {udid}` — 호출자는 끝날 때 cleanup으로 정리한다. stderr에 `KIND virtual` 한 줄 (항상 시뮬레이터).
 #       부팅 대기 시간: $IOS_DEVICE_BOOT_TIMEOUT초 (기본 180)
 #   ios-device.sh cleanup <udid>       → ensure가 부팅한 시뮬레이터 종료 (원래 켜져 있던 것은 건드리지 않는다)
 #   ios-device.sh ui <udid>                              → 화면 요소 트리(AXe JSON — 라벨·frame) 출력. 좌표 단위는 포인트
@@ -82,7 +82,7 @@ case "${1:-}" in
 
   ensure)
     UDID="$(select_device booted)"
-    if [ -n "$UDID" ]; then echo "$UDID"; exit 0; fi
+    if [ -n "$UDID" ]; then echo "KIND virtual" >&2; echo "$UDID"; exit 0; fi
 
     WANT="${2:-}"
     if [ -z "$WANT" ]; then
@@ -112,6 +112,7 @@ case "${1:-}" in
     wait "$BOOT_PID" || { echo "시뮬레이터 $UDID 를 부팅하지 못했습니다" >&2; exit 4; }
     mkdir -p "$MARK_DIR" && : > "$(mark "$UDID")"
     echo "BOOTED $UDID" >&2
+    echo "KIND virtual" >&2
     echo "$UDID"
     ;;
 
