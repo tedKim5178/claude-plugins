@@ -80,9 +80,14 @@ $S get {type} {n} '.decisions + [{"question":"...","answer":"...","by":"user"}] 
 - 물을 때도 후보마다 근거(비슷한 기존 화면의 처리 `파일:라인`)를 달고 추천을 첫 선택지로 둔다. 같은 task에서 질문이 여러 개 나오면 한 번에 모아 묻는다.
 - 체인이면 decision에 `"source": "start-work"`를 단다 — 예외 케이스(에러 분류·빈 응답·백스택·1회성 상태 등)가 여기서 나왔다면 analyze의 code 리서치 2-1이 놓친 것이다. 완료 보고에 개수를 적어 체크리스트 개선 근거로 남긴다.
 
-### 1. base 브랜치
+### 1. base 브랜치 · 확인할 앱
 - 체인: `$S get {type} {n} .base_branch`. **묻지 않는다.**
 - 단독: AskUserQuestion — 선택지 = 프로필 `git.standalone_base_candidates` + 현재 브랜치 + Other
+
+**확인할 앱** (프로필 `빌드.apps`가 있을 때 — 화이트라벨): 이후 `{apps}`.
+- 체인: `$S get {type} {n} '.apps // empty'`. 없으면(`빌드.apps`가 생긴 뒤 분석 전의 상태 파일) 기본 앱 하나. **묻지 않는다.**
+- 단독: `${CLAUDE_PLUGIN_ROOT}/scripts/impl-profile.sh apps`의 앱이 2개 이상이면 analyze-spec Step 1-1과 같은 질문을 base 질문과 함께 묻는다 (기본 앱만이 첫 선택지).
+- 앱마다 `{app}` = `impl-profile.sh apps`에서 그 이름의 **값**이다 (이름이 아니다 — 예: 이름 `gmaas` → 값 `Gmaas`).
 
 ### 2. 작업 브랜치 (메인 워크스페이스)
 
@@ -176,6 +181,7 @@ python3 ${CLAUDE_PLUGIN_ROOT}/scripts/apply-ui-decisions.py {type} {n}
 ```bash
 {compile_task} 2>&1 | tail -30
 ```
+**앱이 있으면(`{apps}`) 앱마다** 명령의 `{app}`을 그 앱의 값으로 채워 실행한다. 채운 명령이 앱끼리 같으면(공통 라이브러리 모듈 등 `{app}`이 없는 명령) 한 번만 돈다. **고른 앱 전부 통과해야 통과다** — 한 앱의 실패를 "다른 앱은 됨"으로 넘기지 않는다.
 `compile_task`는 실행할 전체 명령이다. 이전 형식 상태 파일처럼 빌드 도구 없이 태스크 이름만 있으면(예: `:app:compileDebugKotlin`) 프로필 `빌드.compile`의 형태로 전체 명령을 만들어 merge한 뒤 실행한다 (`test_task`도 같다). null이면 프로필 `빌드.compile`의 `{module}`·`{variant}`를 변경 모듈 기준으로 채워 정한다 (체인이면 merge해 둔다).
 실패 시 추측으로 고치지 않는다 — `systematic-debugging` 스킬(superpowers) Phase 1~4. 3회 실패하면 보고 후 중단.
 
@@ -183,6 +189,7 @@ python3 ${CLAUDE_PLUGIN_ROOT}/scripts/apply-ui-decisions.py {type} {n}
 ```bash
 {test_task} 2>&1 | tail -30
 ```
+Step 6처럼 **앱마다** `{app}`을 채워 실행하고(같은 명령은 한 번), 전부 통과해야 한다. `verification.tests`에 앱별 명령을 적는다 (`pass — shucle: {명령} / gmaas: {명령} (T1,T3)`).
 `test_task`가 null이면: Step 4에서 테스트를 썼다면 프로필 `빌드.test`의 `{module}`·`{variant}`를 그 모듈 기준으로 채워 실행하고,
 새 테스트가 없어도 **변경 모듈에 기존 테스트 소스가 있으면 그 모듈 테스트를 돌린다** (AS-IS 보호).
 실행할 테스트가 하나도 없거나 프로필 `빌드.test`가 `none`일 때만 `verification.tests`에 `none — {사유}`를 기록한다 (빈 명령·`null`을 실행하지 않는다).
@@ -193,6 +200,9 @@ Step 4의 테스트가 전부 통과해야 한다. 기존 테스트가 깨지면
 ### 8. 화면 확인 (visual todo가 있을 때)
 프로필 `화면 확인.mode`가 `none`이면 스폰하지 않고 `verification.visual = "skipped — 화면 확인 수단 없음 (프로필)"`, visual todo의 note는 `visual: skipped — 프로필 none`.
 그 외에는 `visual-verifier` 에이전트를 **반드시** 스폰한다: `state_file`, `output_dir: .impl-spec/{type}-{n}.visual/`.
+- **앱이 있으면 앱마다 한 번씩, 순서대로** 스폰한다 (같은 기기를 쓰므로 병렬 금지): `app: {이름}`, `output_dir: .impl-spec/{type}-{n}.visual/{이름}/`. 계획 케이스(`visual_cases`) 전부를 앱마다 확인한다.
+  기록은 앱별 객체로: `echo '{"verification":{"visual_report":{"shucle":".impl-spec/{type}-{n}.visual/shucle/report.html","gmaas":"…"}}}' | $S merge {type} {n}`.
+  todo의 `visual: pass`는 **고른 앱 전부**에서 대상 케이스가 PASS일 때만이다. 한 앱이라도 FAIL·NOT_RUN·MANUAL이면 그 앱 이름과 사유를 note에 적는다.
 - **기기가 있는지 메인이 직접 판단하지 않는다** (`adb devices` 같은 플랫폼 명령을 쳐 보고 "기기 없음"으로 건너뛰지 않는다). 기기 도구는 PATH에 없을 수 있고, 기기가 없으면 에이전트가 기기 어댑터(프로필 `화면 확인.device_adapter`)로 에뮬레이터·시뮬레이터를 부팅한다 — `SKIPPED`는 에이전트가 돌려줄 때만 기록한다.
 - 에이전트는 상태 파일 `visual_cases`(analyze에서 승인된 확인 계획)를 실행하고 `{output_dir}/report.html`(조건별 스크린샷 비교)을 만든다.
   돌아오면 메인이 **스크린샷을 직접 열어**(대상 케이스 전부 + 회귀 케이스 하나 이상 Read) 에이전트의 판정과 맞는지 본 뒤 기록한다:
@@ -269,6 +279,7 @@ $S stage {type} {n} implemented
 - 브랜치 / base / 이전 브랜치 (`previous_branch` — "메인 워크스페이스가 {branch}로 전환됨")
 - todo별 결과 (T1 ✅ unit / T2 ✅ visual / T4 ⚠️ manual — 사유)
 - 테스트·리뷰·화면 결과 — 화면 확인을 했으면 **리포트 경로(`verification.visual_report`)와 확인하지 못한 것**을 함께 (사용자가 열어 볼 수 있게)
+- 확인한 앱 (`{apps}` — 있을 때): 앱마다 컴파일·테스트·화면 결과와 리포트 경로
 - 커밋 해시 + 메시지
 
 ---

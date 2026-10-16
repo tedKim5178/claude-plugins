@@ -64,6 +64,13 @@ validate_analyzed() { # stdin=json → 문제 목록 출력
     (if (.open_questions // [] | length) > 0
      then "미해결 open_questions \(.open_questions | length)개 — 전부 decisions로 해소한 뒤 기록" else empty end),
     (if (.size // "") | IN("small","large") | not then "size는 small 또는 large" else empty end),
+    # 화이트라벨 앱 선택 (프로필 빌드.apps가 있을 때만) — 이름 배열, 비어 있지 않고 겹치지 않음
+    (if has("apps") and .apps != null then
+       (if (.apps | type) != "array" or (.apps | length) == 0 then "apps는 앱 이름 배열 (1개 이상)"
+        elif ([.apps[] | select(type != "string" or test("^[A-Za-z0-9._-]+$") | not)] | length) > 0 then "apps 항목은 프로필 빌드.apps의 이름: \(.apps)"
+        elif (.apps | length) != (.apps | unique | length) then "apps에 같은 앱이 두 번: \(.apps)"
+        else empty end)
+     else empty end),
     # 형식(접두사·slug 규칙)은 프로필 git.branch_format이 정한다. 여기서는 "{접두사}/{이름}" 꼴인지만 본다 — 레포 고유 규칙을 넣지 않는다.
     (if (.branch // "") | test("^[A-Za-z0-9._-]+/[A-Za-z0-9._/-]+$") | not then "branch 형식 오류 ({접두사}/{이름} 꼴이어야 함): \(.branch)" else empty end),
     (if (.figma.status // "") | IN("ok","none") | not

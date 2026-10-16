@@ -70,9 +70,14 @@ expect_init "token_row replace" 0 '.decisions[1].apply[2] += {op:"replace", expe
 expect_init "merge-ui-results 산출 필드 (ui_results·ui_spec_also·source)" 0 ".ui_results = [{file:\"$D/figma/ui-spec/S1-S2.md\", result_path:\"$D/figma/ui-spec/S1-S2.result.json\"}] | .decisions[0] += {key:\"component:x\", ui_spec:\"$D/figma/ui-spec/S1-S2.md\", ui_spec_also:[], source:\"start-work\"}"
 expect_init "visual todo 없으면 visual_cases 불필요" 0 '.todo_items |= map(.verify = "unit") | del(.ui_specs) | del(.visual_cases)'
 expect_init "manual todo에 단 visual_cases" 0 '.todo_items[1].verify = "manual" | .visual_cases += [{id:"V3", todo_id:"T2", scenario:"s", condition:"c", kind:"target", expect:"e"}]'
+expect_init "apps 선택 (화이트라벨)" 0 '.apps = ["shucle","gmaas"]'
+expect_init "apps null은 선택 없음" 0 '.apps = null'
 expect_init "proto temp-local" 0 '.proto_dependency = {required:true, status:"temp-local", note:"example-proto#1 원문 임시 반영"}'
 
 echo "init — 실패"
+expect_init "apps 빈 배열" 1 '.apps = []' "apps"
+expect_init "apps 중복" 1 '.apps = ["a","a"]' "두 번"
+expect_init "apps 이름 형식" 1 '.apps = ["세종"]' "apps"
 $S path bts 1 > /dev/null 2> "$T/err"; [ $? = 1 ] && grep -q "type은 spec" "$T/err" && ok "type bts는 거부 (BTS 지원 삭제)" || bad "type bts 거부: $(cat "$T/err")"
 $S get bts 1 > /dev/null 2>&1; [ $? = 1 ] && ok "get도 잘못된 type이면 exit 1 (파일 없음 2가 아님)" || bad "get bts exit"
 expect_init "visual 화면이 ui_specs에 없음" 1 '.ui_specs[0].screens = ["S1"]' "S2"

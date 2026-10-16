@@ -98,7 +98,8 @@ Skill tool로 `create-pr` 호출: `spec {n}`
 브랜치: {branch} → {base_branch}   (메인 워크스페이스가 이 브랜치로 전환됨. 이전: {previous_branch})
 구현 항목: ✅ {done 수} / ⚠️ 수동 확인 {manual·visual skipped 수} / ➖ 범위 외 {deferred 수}
 검증: 테스트 {tests} / 화면 {visual} / 리뷰 스펙 {spec}·품질 {quality}
-화면 리포트: {verification.visual_report — 없으면 줄 생략}
+확인한 앱: {apps — 없으면 줄 생략}
+화면 리포트: {verification.visual_report — 앱별이면 앱마다 한 줄, 없으면 줄 생략}
 PR: {pr_url}
 
 ⚠️ 남은 확인 사항: {verification.notes + 수동 확인 todo. 없으면 생략}

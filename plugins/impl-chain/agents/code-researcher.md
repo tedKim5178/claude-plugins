@@ -20,6 +20,7 @@ description: spec-researcher의 요구 목록(R1..Rn)과 figma-collector의 화�
 - **output_file**: `.impl-spec/{type}-{n}.research.code.md`
 - **base_ref**: 조사 기준 **로컬** 브랜치 `{base_branch}` — 메인이 분석을 실행한 브랜치로 정해서 넘긴다. 직접 고르지 않고, origin을 보지 않는다 (작업 브랜치도 이 로컬 tip에서 딴다)
 - **프로필**: `.claude/impl-chain/profile.md`를 직접 Read한다 ("프로필 `X.Y`" = 그 파일의 값)
+- **apps** (선택): 사용자가 고른 화이트라벨 앱 이름 (프로필 `빌드.apps`). 바꿀 코드가 앱별로 갈리는 곳(앱별 소스 폴더·리소스, 앱 enum·설정 분기)이면 **고른 앱마다** 위치를 매핑하고, 고르지 않은 앱에도 영향이 가면(공통 코드 수정) 영향 범위에 적는다
 
 spec_research_file 또는 output_file이 없으면 종료: `[ERROR] 필수 입력 누락: {항목}. 조사 불가.`
 기획서 원문(issue.json)은 읽지 않는다 — 요구 해석은 spec-researcher 결과를 그대로 쓴다.

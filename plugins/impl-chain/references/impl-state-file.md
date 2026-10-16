@@ -121,7 +121,8 @@ $S check-branch spec 4895          # 현재 브랜치 == .branch 확인
 | `decisions[].apply` | analyze-spec (생성), start-work Step 2-1 (반영) | 레포에 반영할 UI 결정 (컴포넌트·토큰 대응표 행, 에셋). 아래 apply 형식 |
 | `proto_dependency` | analyze-spec | 서버 작업 없으면 `{ "required": false, "status": "n/a" }`. `status`: `n/a` / `available` / `missing`(보류·부분 진행) / `temp-local`(서버 proto PR 원문에서 필요한 부분만 임시 반영 — 로컬 테스트 전용, start-work는 T0에 한해 `.proto` 수정 허용, create-pr은 PR 거부) |
 | `size` | analyze-spec | `small` / `large` — start-work의 task 분할 여부 |
-| `compile_task`, `test_task` | analyze-spec | 프로필 `빌드.compile`/`빌드.test`의 `{module}`·`{variant}`(프로필 `빌드.module_variants`)를 채운 **실행할 전체 명령**. 모르면 `null` → start-work가 채움 |
+| `apps` | analyze-spec Step 1-1 | 이번 작업에서 빌드·테스트할 화이트라벨 앱 이름 배열 (프로필 `빌드.apps`의 이름, 프로필 순서). 프로필에 `빌드.apps`가 없으면 생략. start-work가 앱마다 `{app}`을 채워 컴파일·테스트·화면 확인을 **전부** 한다 |
+| `compile_task`, `test_task` | analyze-spec | 프로필 `빌드.compile`/`빌드.test`의 `{module}`·`{variant}`(프로필 `빌드.module_variants`)를 채운 **실행할 전체 명령**. `{app}`은 남겨 둔다 (start-work가 `apps`마다 채움). 모르면 `null` → start-work가 채움 |
 | `tasks` | start-work (large만) | `[{id, todo_ids, files, done}]` — task의 compile·test 통과 확인 직후 `done: true` (task별 커밋 없음 — 커밋은 전체에 하나). 재개 시 done인 task는 건너뛴다 |
 | `commits`, `verification` | start-work | 아래 verification 형식 |
 | `previous_branch` | start-work | 브랜치 전환 전 메인 워크스페이스 브랜치 (돌아갈 곳 안내용) |
@@ -190,7 +191,8 @@ analyze는 base 브랜치 위라 레포 파일을 쓰지 않는다. 반영은 st
   프로필 `빌드.test_retention`이 `discard`면 테스트 코드는 커밋에 없다 — `pass — {명령} (T1,T3) · 테스트 코드는 통과 확인 후 삭제`.
 - `commits`는 보통 1개다 (start-work는 작업 전체를 한 번에 커밋한다).
 - `visual`은 선택. visual-verifier가 `SKIPPED`를 돌려줬으면 `"skipped — {에이전트가 준 사유}"` (메인이 직접 기기 유무를 판단해 적지 않는다).
-- `visual_report`는 화면 확인을 했을 때의 리포트 경로. create-pr이 push 확인 화면에서 보여준다.
+- `visual_report`는 화면 확인을 했을 때의 리포트 경로. create-pr이 push 확인 화면에서 보여준다. `apps`가 2개 이상이면 앱마다 리포트가 있어 `{"shucle": ".impl-spec/spec-4895.visual/shucle/report.html", "gmaas": …}` 객체로 적는다.
+- `apps`가 있으면 `compile`·`tests`·`visual`은 **고른 앱 전부**의 결과다 — 한 앱이라도 실패면 pass가 아니다. `tests`에는 앱별 명령을 적는다 (`pass — shucle: {명령} / gmaas: {명령} (T1,T3)`).
 - todo `status: done`은 "구현됨"이다. 검증 증거는 `verify` + `verification`이 따로 보여준다 (visual skipped면 PR에서 `[ ]`).
 
 ### stage 전이

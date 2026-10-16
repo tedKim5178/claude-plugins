@@ -98,6 +98,20 @@ AskUserQuestion으로 선택.
 ```
 목록을 표로 보여주고 **AskUserQuestion**으로 선택 (4개 초과면 대표 3개 + Other). 자유 입력 안내문으로 대체하지 않는다.
 
+### 1-1. 확인할 앱 (프로필 `빌드.apps`가 있을 때 — 화이트라벨)
+
+```bash
+${CLAUDE_PLUGIN_ROOT}/scripts/impl-profile.sh apps     # `이름<TAB>값` 한 줄씩, 첫 줄 = 기본 앱. 출력이 없으면 이 단계 생략
+```
+앱이 2개 이상이면 **AskUserQuestion** — "이번 작업을 어떤 앱으로 빌드·테스트할까요?":
+- `{기본 앱}만 (기본)` — 첫 선택지
+- `전부 ({n}개: {이름들})`
+- 앱이 4개 이하면 나머지 앱도 하나씩 선택지로 (multiSelect). 그보다 많으면 Other에 쉼표로 이름을 받는다 (`gmaas, sejong`) — 목록에 없는 이름이면 다시 묻는다.
+
+앱이 1개면 묻지 않고 그 앱이다. 고른 이름 배열이 상태 파일 `apps`다 (프로필 순서대로). **여러 개를 고르면 start-work가 컴파일·테스트·화면 확인을 앱마다 전부 한다** — 하나라도 실패하면 통과가 아니다.
+기획서가 특정 앱 얘기만 하면(예: "세종 앱에서만") 리포트에 그 사실을 적되, 고른 앱을 바꾸지 않는다 — 바꿀지는 사용자가 확인 루프에서 정한다.
+이어하기(Step 0-1)로 draft에서 이어가면 draft의 `apps`를 쓰고 다시 묻지 않는다.
+
 ### 2. 이슈 데이터 → 파일
 원문 JSON을 메인 컨텍스트에 올리지 않는다. 파일로 저장하고 요약만 본다.
 ```bash
@@ -133,7 +147,7 @@ jq '{title: .issue.title, spec: .spec.number, spec_title: .spec.title, candidate
 
 | 에이전트 | 전달 파라미터 |
 |---------|--------------|
-| `code-researcher` | `spec_research_file: .impl-spec/spec-{n}.research.spec.md`, `figma_index_file: .impl-spec/spec-{n}.figma/index.md`(status ok일 때), `output_file: .impl-spec/spec-{n}.research.code.md`, `base_ref: {base_branch}` (Step 0 — 로컬 브랜치) |
+| `code-researcher` | `spec_research_file: .impl-spec/spec-{n}.research.spec.md`, `figma_index_file: .impl-spec/spec-{n}.figma/index.md`(status ok일 때), `output_file: .impl-spec/spec-{n}.research.code.md`, `base_ref: {base_branch}` (Step 0 — 로컬 브랜치), `apps: {Step 1-1에서 고른 앱 — 없으면 생략}` |
 
 code 리서치 맨 위에 "이미 구현 흔적" 경고가 있으면 open question으로 올린다 (중복 구현 / 이어서 작업 / 다른 브랜치에서 다시 실행).
 
@@ -277,7 +291,8 @@ base는 Step 0에서 이미 확정됐다 — 여기서 다시 판단하지 않�
 
 draft를 최종 내용으로 갱신한 뒤 (규격 필드: issue_*, spec_url, milestone, base_branch, branch, size,
 research_files, todo_items, decisions(+apply), open_questions: [], figma, ui_specs(Step 4-1 — visual todo 없거나 Figma 없으면 생략), visual_cases(Step 4-2 — visual todo 없으면 생략), proto_dependency, files_to_modify,
-implementation_direction, compile_task, test_task — 프로필 `빌드.compile`/`빌드.test`의 `{module}`·`{variant}`(프로필 `빌드.module_variants`)를 채운 **실행할 전체 명령**):
+implementation_direction, compile_task, test_task — 프로필 `빌드.compile`/`빌드.test`의 `{module}`·`{variant}`(프로필 `빌드.module_variants`)를 채운 **실행할 전체 명령**. `{app}`은 **채우지 않고 남겨 둔다** — start-work가 `apps`마다 채워 실행한다,
+apps — Step 1-1에서 고른 앱 이름 배열. `빌드.apps`가 없으면 생략):
 ```bash
 ${CLAUDE_PLUGIN_ROOT}/scripts/impl-state.sh init spec {n} < .impl-spec/spec-{n}.draft.json && rm .impl-spec/spec-{n}.draft.json
 ```

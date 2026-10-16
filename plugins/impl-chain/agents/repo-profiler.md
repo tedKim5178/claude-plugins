@@ -31,6 +31,7 @@ description: impl-setup이 스폰하는 읽기 전용 레포 분석 에이전트
    - 빌드 태스크: **모듈 유형마다** 대표 모듈 하나씩 실제 태스크 목록을 본다. 모듈마다 변형(flavor)이 다른 레포가 있다 — 그러면 `{variant}` + `module_variants`.
      (Gradle 예: `./gradlew -m ":${m}:compile{variant}Kotlin"` dry-run — 성공/실패로 태스크 존재 확인. `tasks --all`은 AGP 버전에 따라 compile 태스크를 안 보여줄 수 있다.
      **틀린 variant가 실패하는 것도** 한 번 확인한다. zsh에서는 `$m:t`가 변수 수식어로 먹으니 `${m}`)
+   - **화이트라벨 앱**: 같은 코드로 여러 앱을 빌드하면(Android 앱 구분 flavor dimension — `productFlavors`의 label·brand 등 / iOS 앱 타깃·스킴이 여럿) `빌드.apps`를 제안한다 — 앱마다 `이름=값`(값 = 태스크·스킴 이름에 들어가는 문자열, 예: `gmaas=Gmaas` → `installGmaasDevDebug`), 첫 항목 = 지금 프로필·CI가 쓰는 기본 앱. 그리고 compile·test·install·`module_variants`에서 앱이 바뀌는 자리를 `{app}`으로 바꾼 템플릿을 함께 제안한다. **`{app}`을 넣은 명령은 앱 두 개 이상으로 채워 dry-run으로 태스크·스킴이 있는지 확인한다** (앱마다 없는 태스크가 있을 수 있다 — 그 앱은 빼고 근거를 적는다).
    - 이슈 링크 정규식: 실제 최근 이슈 본문·댓글에 돌려서 잡히는 것/안 잡혀야 하는 것(앱 레포 자신의 링크 등)을 확인.
    - 도구: 기기 도구(Android면 `android-device.sh check` — adb / iOS면 `ios-device.sh check` — simctl + AXe), `gh auth status` 등. PATH에 없으면 실제 위치와 함께 보고.
 4. **토큰**: 시맨틱 층 토큰 정의 파일(색·타이포를 용도 이름으로 선언한 파일)을 찾아 `source`로 제안한다. 팔레트 파일(원색 단계값)은 넣지 않는다 — 값이 겹치는 토큰이 많아져 질문이 넘친다.

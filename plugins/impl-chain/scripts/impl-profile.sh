@@ -8,6 +8,8 @@
 #       값 `builtin:gh-spec-issue` / `builtin:android-device` / `builtin:ios-device` / `builtin:ios-real-device` → 이 스크립트와 같은 폴더의 공용 어댑터
 #       (예전 값 `.claude/scripts/gh-spec-issue.sh`도 builtin으로 본다) / 그 외 → 레포 루트 기준 경로 (레포 전용 어댑터)
 #       `화면 확인.device_adapter`는 키가 없으면 `builtin:android-device`로 본다. 값이 목록(쉼표 구분)이면 adapters를 쓴다 (exit 1)
+#   impl-profile.sh apps       `빌드.apps`(화이트라벨 앱)를 한 줄에 하나씩 `{이름}<TAB>{값}`으로 출력. 첫 줄이 기본 앱. 키가 없으면 출력 없이 exit 0
+#       값은 빌드 명령의 `{app}` 자리에 들어간다. 항목이 `이름`만이면 값 = 이름
 #   impl-profile.sh adapters   `화면 확인.device_adapter`의 기기 어댑터 절대 경로를 우선순위 순서로 한 줄씩 출력
 #       예: `builtin:ios-real-device, builtin:ios-device` → 실기기 어댑터, 시뮬레이터 어댑터 (visual-verifier가 앞에서부터 ensure를 시도)
 #
@@ -97,6 +99,20 @@ cmd_adapter() {
   echo "$p"
 }
 
+# 빌드.apps → `이름<TAB>값` 줄들 (공백·백틱 정리, 빈 항목 제외)
+app_entries() {
+  local v; v=$(pget "빌드.apps" 2>/dev/null) || return 0
+  tr ',' '\n' <<< "$v" | sed 's/^[[:space:]`]*//; s/[[:space:]`]*$//' | grep -v '^$' \
+    | awk '{ i = index($0, "="); if (i) { n = substr($0, 1, i - 1); v = substr($0, i + 1) } else { n = $0; v = $0 }
+             gsub(/^[ \t]+|[ \t]+$/, "", n); gsub(/^[ \t]+|[ \t]+$/, "", v); print n "\t" v }'
+}
+
+cmd_apps() {
+  [ $# -eq 0 ] || die "usage: impl-profile.sh apps"
+  [ -f "$PROFILE" ] || die "프로필 없음: $PROFILE"
+  app_entries
+}
+
 cmd_adapters() {
   [ $# -eq 0 ] || die "usage: impl-profile.sh adapters"
   [ -f "$PROFILE" ] || die "프로필 없음: $PROFILE"
@@ -175,6 +191,26 @@ cmd_check() {
   # 선택 키: push·PR에 쓰는 원격 이름 (없으면 origin)
   local remote; remote=$(pget "git.remote" 2>/dev/null) && { [[ "$remote" =~ ^[A-Za-z0-9._-]+$ ]] || problems+=("git.remote 값 '$remote' — 원격 이름 한 단어여야 함"); }
 
+  # 화이트라벨 앱 — 빌드 명령(또는 module_variants)이 {app}을 쓰면 빌드.apps가 있어야 하고, 항목은 이름이 겹치지 않아야 한다
+  local uses_app="" k
+  for k in compile test install install_real module_variants; do
+    pget "빌드.$k" 2>/dev/null | grep -q '{app}' && uses_app=1
+  done
+  if pget "빌드.apps" > /dev/null 2>&1; then
+    local an ab names=" " n_apps=0
+    while IFS=$'\t' read -r an ab; do
+      n_apps=$((n_apps + 1))
+      [ -n "$an" ] && [ -n "$ab" ] || problems+=("빌드.apps 항목이 비어 있음 ('이름=값' 또는 '이름')")
+      [[ "$an" =~ ^[A-Za-z0-9._-]+$ ]] || problems+=("빌드.apps 이름 '$an' — 영문·숫자·._- 만 (폴더·파일 이름에 쓴다)")
+      case "$names" in *" $an "*) problems+=("빌드.apps 이름이 두 번: $an") ;; esac
+      names="$names$an "
+    done < <(app_entries)
+    [ "$n_apps" -gt 0 ] || problems+=("빌드.apps 값이 비어 있음")
+    [ -n "$uses_app" ] || problems+=("빌드.apps가 있는데 빌드 명령(compile·test·install·install_real·module_variants) 어디에도 {app}이 없음 — 앱을 골라도 빌드가 바뀌지 않는다")
+  elif [ -n "$uses_app" ]; then
+    problems+=("빌드 명령이 {app}을 쓰는데 빌드.apps가 없음")
+  fi
+
   # 빌드 명령이 {variant}를 쓰면 모듈 → variant 대응이 있어야 한다
   if pget 빌드.compile 2>/dev/null | grep -q '{variant}' || pget 빌드.test 2>/dev/null | grep -q '{variant}'; then
     need "빌드.module_variants"
@@ -238,5 +274,6 @@ case "${1:-}" in
   check)   shift; cmd_check "$@" ;;
   adapter) shift; cmd_adapter "$@" ;;
   adapters) shift; cmd_adapters "$@" ;;
-  *)       die "usage: impl-profile.sh get <섹션>.<키> | check [--for analyze-spec|start-work] | adapter <키> | adapters" ;;
+  apps)    shift; cmd_apps "$@" ;;
+  *)       die "usage: impl-profile.sh get <섹션>.<키> | check [--for analyze-spec|start-work] | adapter <키> | adapters | apps" ;;
 esac

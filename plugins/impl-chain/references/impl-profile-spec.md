@@ -24,7 +24,7 @@ GitHub 이슈를 쓰면 이슈 어댑터는 공용 스크립트를 그대로 쓰
 ## 형식
 
 `## {섹션}` 아래 `- {키}: {값}` 한 줄씩. 체인 문서는 **"프로필 `섹션.키`"** 로 가리킨다 (예: 프로필 `빌드.compile`).
-값 안의 `{module}`, `{variant}`, `{name}`, `{n}`, `{slug}`는 쓰는 쪽이 실행 시 채운다. `{variant}`는 `빌드.module_variants`에서 그 모듈에 해당하는 값이다.
+값 안의 `{module}`, `{variant}`, `{app}`, `{name}`, `{n}`, `{slug}`는 쓰는 쪽이 실행 시 채운다. `{variant}`는 `빌드.module_variants`에서 그 모듈에 해당하는 값이다. `{app}`은 사용자가 고른 화이트라벨 앱의 값(`빌드.apps`)이다 — `module_variants` 값 안에 있어도 된다 (예: `app, presenter → {app}QaDebug`).
 
 ## 프로필 게이트 (체인 시작 시 — analyze-spec Step 0-0, 단독 start-work Step 0-0)
 
@@ -61,6 +61,7 @@ exit 0이면 통과. 아니면 stderr의 문제 목록을 그대로 보여주고
 | | `test` | ✅ | 유닛 테스트 명령 템플릿. 테스트 인프라가 없으면 `none` |
 | | `install` | 화면 확인.mode가 none이 아니면 | 기기 설치 명령. `{id}`가 있으면 visual-verifier가 기기 어댑터 `ensure`가 고른 기기 id로 채운다 |
 | | `install_real` | | 고른 기기가 **실기기**(`KIND real`)일 때만 `install` 대신 쓰는 설치 명령 (`{id}` 같음). iOS처럼 실기기·시뮬레이터 빌드가 다를 때. 없으면 `install` |
+| | `apps` | 빌드 명령에 `{app}`이 있으면 | 화이트라벨 앱 목록 — 같은 코드로 빌드하는 앱(Android product flavor, iOS 앱 타깃·스킴). 쉼표 구분 `이름=값` (값 = `{app}` 자리에 들어갈 문자열, `이름`만 쓰면 값 = 이름). **첫 항목이 기본 앱**. 이름은 영문·숫자·`._-`. 예: `shucle=Shucle, gmaas=Gmaas, sejong=Sejong` (Android `install{app}DevDebug`) / `shucle=Shucle_DEV-dev, gmaas=gMaaS_DEV-dev` (iOS `-scheme {app}`). analyze-spec이 이번 작업의 앱을 묻고, start-work가 고른 앱마다 컴파일·테스트·화면 확인을 한다 |
 | | `module_variants` | compile/test에 `{variant}`가 있으면 | 모듈(그룹) → variant 대응. 모듈마다 빌드 변형이 다른 레포용 |
 | | `test_source_hint` | | 모듈의 테스트 소스 위치 (테스트가 있는지 판단용) |
 | | `test_retention` | | `discard`(기본 — 키가 없을 때도) \| `keep`. `discard`: start-work가 이번 작업에서 추가한 테스트 코드를 통과 확인·리뷰 뒤에 지우고 커밋에 넣지 않는다 (start-work Step 9-1). `keep`: 테스트도 커밋한다 |

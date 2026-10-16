@@ -8,7 +8,7 @@ Usage:
 - state_file의 `visual_cases` — analyze 단계에서 승인된 확인 계획
   [{id, todo_id, scenario, condition, kind: target|regression, expect}]
 - results.json (기본: {output_dir}/results.json) — visual-verifier가 쓴 실제 결과
-  {device, build, commit, entry, device_fallback: [], mock_files: [], not_verified: [], observations: [],
+  {app?, device, build, commit, entry, device_fallback: [], mock_files: [], not_verified: [], observations: [],
    results: [{case_id, verdict: PASS|FAIL|MANUAL, evidence, screenshot, layout?, layout_na?}],
    extra_cases: [{id, todo_id, scenario, condition, kind, expect, verdict, evidence, screenshot, layout?, layout_na?}]}
   screenshot은 output_dir 안의 파일 이름이다.
@@ -244,8 +244,9 @@ def main(argv):
                     f'<td class="num">{len(mine)}</td><td>{cell}</td></tr>')
 
     key = f'{state.get("issue_type", "")} #{state.get("issue_number", "")}'
-    title = f'화면 확인 {key}'
-    meta = " · ".join(esc(x) for x in (key, res.get("commit"), res.get("device"), res.get("build")) if x)
+    title = f'화면 확인 {key}' + (f' — {res["app"]}' if res.get("app") else "")
+    meta = " · ".join(esc(x) for x in (key, f'앱 {res["app"]}' if res.get("app") else None,
+                                         res.get("commit"), res.get("device"), res.get("build")) if x)
     not_run = [f'{c["id"]} {c["scenario"]} — {c["condition"]} (계획에 있었으나 확인 안 함)'
                for c in cases if c["verdict"] == "NOT_RUN"]
     setup = (([res["entry"]] if res.get("entry") else []) + [f"mock: {m}" for m in res.get("mock_files") or []]

@@ -151,6 +151,21 @@ F=$(variant real-keys-bad <<< 's/^- mock_skill: .*/&\n- mock_skill_real: no-such
 expect_exit "mock_skill_real 스킬 없으면 실패" 1 env IMPL_PROFILE="$F" $P check
 grep -q "mock_skill_real" "$T/err" && ok "mock_skill_real 보고" || bad "보고: $(cat "$T/err")"
 
+echo "화이트라벨 앱"
+[ -z "$($P apps)" ] && ok "apps — 키 없으면 출력 없음" || bad "apps 기본: $($P apps)"
+F=$(variant apps <<< 's/^- install: .*/- install: .\/gradlew :app:install{app}DevDebug\n- apps: shucle=Shucle, `gmaas=Gmaas`, sejong/')
+[ "$(env IMPL_PROFILE="$F" $P apps | tr '\t\n' ':|')" = "shucle:Shucle|gmaas:Gmaas|sejong:sejong|" ] && ok "이름·값 순서대로 (값 없으면 이름)" || bad "apps: $(env IMPL_PROFILE="$F" $P apps)"
+expect_exit "{app}을 쓰고 apps가 있으면 통과" 0 env IMPL_PROFILE="$F" $P check
+F=$(variant apps-missing <<< 's/^- install: .*/- install: .\/gradlew :app:install{app}DevDebug/')
+expect_exit "{app}을 쓰는데 apps 없음" 1 env IMPL_PROFILE="$F" $P check
+grep -q "빌드.apps가 없음" "$T/err" && ok "apps 없음 보고" || bad "보고: $(cat "$T/err")"
+F=$(variant apps-unused <<< 's/^- install: .*/&\n- apps: a, b/')
+expect_exit "apps가 있는데 {app}을 안 씀" 1 env IMPL_PROFILE="$F" $P check
+F=$(variant apps-dup <<< 's/^- install: .*/- install: x {app}\n- apps: a=A, a=B/')
+expect_exit "앱 이름 중복" 1 env IMPL_PROFILE="$F" $P check
+F=$(variant apps-badname <<< 's/^- install: .*/- install: x {app}\n- apps: 세종=Sejong/')
+expect_exit "앱 이름에 한글·공백" 1 env IMPL_PROFILE="$F" $P check
+
 echo "check — 그 외 변형"
 F=$(variant adb-no-install <<< 's/^- mode: adb-mock$/- mode: adb/; /^- mock_skill: /d; /^- install: /d')
 expect_exit "adb 모드도 install 필수" 1 env IMPL_PROFILE="$F" $P check

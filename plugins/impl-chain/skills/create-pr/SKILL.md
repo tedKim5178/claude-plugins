@@ -92,6 +92,7 @@ git log --reverse --format=%s $(git merge-base {base_branch} HEAD)..HEAD | head 
 - ~~T5 {desc}~~ — 범위 외 ({decision})
 
 ## 🧪 검증
+* 확인한 앱: {apps — 있을 때만 줄}
 * 테스트: {verification.tests}
 * 화면: {verification.visual} {mock으로 만든 화면이면 그 사실을 한 구절로}
 * 리뷰: 스펙 {review.spec} / 품질 {review.quality}
@@ -126,7 +127,8 @@ ${CLAUDE_PLUGIN_ROOT}/scripts/check-pr-ready.sh {base_branch} {proto_dependency.
 브랜치: {branch} → base: {base_branch}
 커밋: {commits 개수}개 — {제목}
 이슈: {issue_url}
-화면 확인: {verification.visual} — 리포트: {verification.visual_report}   ← visual todo가 있을 때
+확인한 앱: {apps — 있을 때. 컴파일·테스트·화면 확인을 앱마다 함}
+화면 확인: {verification.visual} — 리포트: {verification.visual_report — 앱별 객체면 앱마다 한 줄}   ← visual todo가 있을 때
 (본문 미리보기)
 
 push하고 PR을 생성할까요?

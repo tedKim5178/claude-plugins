@@ -14,7 +14,8 @@ description: verify=visual 인 todo를 프로필 `화면 확인.mode`의 수단(
 ## 입력 (메인 Claude가 전달)
 
 - **state_file**: `.impl-spec/{type}-{n}.json` — `visual_cases`(확인 계획), `verify == "visual"` 인 todo, `research_files`
-- **output_dir**: `.impl-spec/{type}-{n}.visual/`
+- **output_dir**: `.impl-spec/{type}-{n}.visual/` (앱이 있으면 `.impl-spec/{type}-{n}.visual/{app}/`)
+- **app** (선택): 이번에 확인할 화이트라벨 앱 이름 (프로필 `빌드.apps`의 이름). 메인이 고른 앱마다 따로 스폰한다 — 이 실행은 이 앱 하나만 본다
 - **프로필**: `.claude/impl-chain/profile.md`를 직접 Read한다 — `화면 확인.*`, `빌드.install`, `빌드.install_real`
 
 **기기는 기기 어댑터로만 다룬다.** 어댑터는 프로필 `화면 확인.device_adapter`가 정한다 (없으면 Android용 공용 어댑터, 여러 개면 우선순위 목록). 계약: `${CLAUDE_PLUGIN_ROOT}/references/impl-profile-spec.md` "기기 어댑터".
@@ -37,6 +38,7 @@ ${CLAUDE_PLUGIN_ROOT}/scripts/impl-profile.sh adapters        # stdout = 기기 
 - 목록의 **앞에서부터** `ensure`를 실행한다 (k = 1, 2, …). exit 0이면 그 어댑터로 정하고 멈춘다 — 뒤의 어댑터는 실행하지 않는다.
   exit 3(기기 도구 없음)·4(기기 없음)·5(시간 초과)면 `device-{k}.err` 첫 줄을 사유로 적어 두고 다음 어댑터로 간다.
   **전부 실패하면** 그때 종료하고 반환: `SKIPPED — {어댑터마다 이름: 사유}`.
+- 기기 어댑터를 부를 때는 `app`이 있으면 환경 변수 `IMPL_APP={이름}`·`IMPL_APP_VALUE={값}`를 붙인다 (예: `IMPL_APP=gmaas IMPL_APP_VALUE=Gmaas {device_adapter} ui {id}`) — 앱마다 번들 id 등이 다른 레포 전용 어댑터가 이걸로 앱을 구분한다. 공용 어댑터는 쓰지 않는다.
 - 정한 어댑터 경로가 이후 이 문서의 `{device_adapter}`, 그 `ensure` 출력이 `{id}`다 — **글자 그대로** 쓴다 (셸 변수는 다음 호출에 남지 않는다). 정한 어댑터의 err 파일을 `device.err`로 복사해 둔다.
 - `device.err`의 `KIND real|virtual`이 기기 종류다 (없으면 `unknown`). 1단계 설치 명령과 3단계 mock 스킬을 이걸로 고른다.
 - 앞 어댑터를 건너뛴 사유는 결과에 남긴다 (5-1 `device_fallback`). 특히 **실기기는 연결됐는데 실패**한 경우(WebDriverAgent가 안 뜸 등 — 사유에 기기 이름이 나온다)는 사람이 고칠 수 있는 문제라 꼭 적는다.
@@ -46,7 +48,8 @@ ${CLAUDE_PLUGIN_ROOT}/scripts/impl-profile.sh adapters        # stdout = 기기 
 - mock 스킬이 "대상 기기가 여럿이면 사용자에게 물어라"고 해도 묻지 않는다 — 대상은 항상 `{id}` 기기다 (실기기 어댑터면 그 실기기, 시뮬레이터 어댑터면 그 시뮬레이터). 스킬이 자기 채널을 열어야 하면(예: 실기기 포트 포워드) 그 스킬 절차대로 열고, 6. 정리에서 닫는다.
 
 ### 1. 설치
-설치 명령 = `KIND real`이고 프로필 `빌드.install_real`이 있으면 그것, 아니면 `빌드.install`. 명령 안의 `{id}`는 0단계의 `{id}`로 채운다.
+설치 명령 = `KIND real`이고 프로필 `빌드.install_real`이 있으면 그것, 아니면 `빌드.install`. 명령 안의 `{id}`는 0단계의 `{id}`로, `{app}`은 입력 `app`의 **값**(`impl-profile.sh apps`에서 그 이름의 값)으로 채운다.
+`app`이 주어졌는데 설치 명령에 `{app}`이 없으면 그 앱이 설치되지 않는다 — 설치하지 말고 `SKIPPED — 설치 명령에 {app}이 없어 {app} 앱을 설치할 수 없음 (프로필 빌드.install)`로 종료한다.
 ```bash
 {설치 명령} 2>&1 | tail -5
 ```
@@ -107,6 +110,7 @@ ui-spec이 있는 화면이면 케이스마다 **ui-spec 레이아웃 트리·�
 케이스별 판정을 `{output_dir}/results.json`에 쓴다:
 ```json
 {
+  "app": "{입력 app — 없으면 키 생략}",
   "device": "{id} ({실기기 | 에뮬레이터·시뮬레이터} — {연결 기기 | 부팅한 기기 이름})", "build": "{1단계에서 쓴 설치 명령}",
   "device_fallback": ["건너뛴 어댑터: 사유 — 예: ios-real-device: USB로 연결된 iOS 기기가 없습니다 (없으면 빈 배열)"], "commit": "{git rev-parse --short HEAD}",
   "entry": "화면에 들어간 방법 — 실제 흐름인지, mock·우회 진입인지를 사람이 알 수 있게 한두 문장",
@@ -137,7 +141,7 @@ push한 mock 파일을 전부 삭제하고(파일이 아니라 메모리에 넣�
 ## 출력 형식
 
 ```
-### Visual 결과 — {type} #{n}
+### Visual 결과 — {type} #{n}{ — 앱 {app} (있으면)}
 기기: {id} ({실기기 | 에뮬레이터·시뮬레이터} — {연결 기기 | 부팅한 기기 이름 — 종료함}) / 빌드: {1단계 설치 명령}
 건너뛴 어댑터: {device_fallback — 없으면 줄 생략}
 
