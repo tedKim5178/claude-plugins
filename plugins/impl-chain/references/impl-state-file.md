@@ -28,6 +28,7 @@ $S check-branch spec 4895          # 현재 브랜치 == .branch 확인
 ```
 .impl-spec/{type}-{number}.json             상태 파일      (type = spec)
 .impl-spec/{type}-{number}.research.*.md    리서치 원본 요약 (researcher 에이전트가 기록)
+.impl-spec/{type}-{number}.brief.md         start-work(large)가 task 서브에이전트에게 주는 브리프 한 장 (todo·decisions·매핑·예외 — 상태 파일·리서치에서 메인이 만든다)
 .impl-spec/{type}-{number}.visual/          visual-verifier 스크린샷
 .impl-spec/{type}-{number}.figma/           figma-collector(index.md, screens/) + figma-ui-spec(ui-spec/, vars/, context/, assets/)
 ```

@@ -125,14 +125,21 @@ python3 ${CLAUDE_PLUGIN_ROOT}/scripts/apply-ui-decisions.py {type} {n}
 ### 3. 작업 분할 (size 기준)
 
 - **small** (단독 경로는 항상 small): Step 4~7을 메인이 직접 수행.
-- **large**: todo를 의존 순서(프로필 `코드.layer_order`)로 1~3개씩 묶어 task로 만들고 기록:
+- **large**: todo를 **2~3개의 task**로 묶어 기록한다. 레이어마다 쪼개지 말고 **흐름 단위**로 묶는다:
+  - K1 = 계약·데이터 (프로필 `코드.layer_order`의 앞쪽 — 서버 계약 반영·모델·저장소·유스케이스·순수 로직)
+  - K2 = 한 사용자 흐름의 화면·이동 전체 (진입점부터 마지막 화면까지). **화면 사이를 오가는 값·1회성 호출·백스택은 한 task 안에 둔다** — 웹뷰 화면과 결과 화면을 다른 task로 나누면 "1회 보장"이 한쪽에만 들어간다
+  - K3 (필요할 때만) = 흐름과 무관한 나머지 (다른 화면의 진입점, 설정 플래그 등)
   ```bash
   echo '{"tasks":[{"id":"K1","todo_ids":["T1","T2"],"files":["..."]}]}' | $S merge {type} {n}
   ```
+  **브리프 한 장**: 첫 task를 스폰하기 전에 메인이 `.impl-spec/{type}-{n}.brief.md`를 한 번 쓴다 — 서브에이전트가 리서치 원문 전체를 매번 다시 읽지 않게 한다 (task마다 리서치 재독이 large 작업 토큰의 큰 몫이었다):
+  - todo 전부(id·acceptance 원문 — `예외:` 줄 포함, 요약 금지), decisions 전부(key·answer), code 리서치 1번 매핑표에서 이번 todo들의 행(`파일:라인`·바꿀 지점·같이 흔들리는 곳), 2-1·2-2 표
+  - ui-spec 파일 경로, 프로필 문구 규칙 요약, compile/test 명령, 다른 task의 담당 todo 목록(경계를 알게)
   task마다 **순서대로** `general-purpose` 서브에이전트를 스폰한다 (같은 작업 트리이므로 병렬 금지).
-  전달: 상태 파일 경로, 담당 todo id, research 파일 경로, Step 4~7 절차(이 문서의 해당 부분), compile/test task.
+  전달: 브리프 경로, 상태 파일 경로, 담당 todo id, Step 4~7 절차(이 문서의 해당 부분). 리서치 원문은 브리프에 없는 것을 확인할 때만 읽게 한다.
+  task 중간 컴파일은 **그 task가 바꾼 모듈만** 돌리게 한다 (프로필 `빌드.compile`에 그 모듈을 채운 명령) — 전체 `compile_task`는 Step 6에서 메인이 한 번 돈다.
   서브에이전트는 커밋하지 않는다. 돌아오면 메인이 `git diff --stat`으로 범위를 확인하고,
-  compile·test를 직접 다시 돌려 통과를 확인한 뒤 `tasks` 배열에서 해당 task에 `"done": true`를 넣어 merge한다.
+  바뀐 모듈의 compile·test를 직접 다시 돌려 통과를 확인한 뒤 `tasks` 배열에서 해당 task에 `"done": true`를 넣어 merge한다.
   **task 단위로 커밋하지 않는다** — 변경은 작업 트리에 쌓아 두고(신규 파일은 `git add -N`), 모든 task가 끝난 뒤
   Step 8~9(화면 확인·리뷰)를 전체 diff에 대해 한 번 수행하고 Step 10에서 한 번에 커밋한다.
   **재개 시 `done`인 task는 건너뛴다** (작업 트리에 그 task의 변경이 남아 있는지 `git status`로 확인하고, 없으면 `done`을 지우고 다시 한다).

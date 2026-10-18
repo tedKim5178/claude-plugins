@@ -73,6 +73,18 @@ grep -qx "KIND virtual" "$T/err" && ok "에뮬레이터면 KIND virtual" || bad 
 [ ! -f "$T/booted" ] && ok "켜져 있으면 부팅하지 않음" || bad "부팅함"
 rm -f "$T/qemu"
 
+echo "ensure — device_preference virtual"
+printf 'R5CT326ZS4M\tdevice\nemulator-5556\tdevice\n' > "$T/state"
+expect "실기기가 있어도 에뮬레이터를 고름" 0 run ANDROID_DEVICE_PREFERENCE=virtual "$D" ensure
+[ "$out" = "emulator-5556" ] && ok "에뮬레이터 serial" || bad "out=$out"
+printf 'R5CT326ZS4M\tdevice\n' > "$T/state"; printf 'Pixel_A\n' > "$T/avds"; rm -f "$T/booted"
+expect "실기기만 있으면 AVD를 부팅" 0 run ANDROID_DEVICE_PREFERENCE=virtual "$D" ensure
+[ -s "$T/booted" ] && ok "부팅 요청함" || bad "부팅하지 않음"
+grep -qx "BOOTED emulator-5554" "$T/err" && ok "BOOTED 출력" || bad "err: $(cat "$T/err")"
+rm -f "$T/avds" "$T/booted"
+expect "알 수 없는 값은 exit 1" 1 run ANDROID_DEVICE_PREFERENCE=phone "$D" ensure
+expect "real이면 실기기 우선 (기본과 같음)" 0 run ANDROID_DEVICE_PREFERENCE=real "$D" ensure
+
 echo "ensure — 기기 없음"
 : > "$T/state"; : > "$T/avds"
 expect "기기·AVD 둘 다 없으면 exit 4" 4 run "$D" ensure

@@ -131,6 +131,15 @@ jq '{title: .issue.title, spec: .spec.number, spec_title: .spec.title, candidate
 
 번호순·등장순으로 임의로 고르지 않는다. 엉뚱한 기획서로 분석 전체가 진행된다.
 
+### 2-1. Figma 사전 점검 (이슈 데이터에 Figma 링크가 있을 때 — 리서치 스폰 전)
+
+```bash
+jq -r '.. | strings' .impl-spec/spec-{n}.issue.json | grep -c 'https://www.figma.com/'
+```
+1개 이상이면 메인이 Figma MCP `whoami`를 한 번 호출한다 (도구가 지연 로드면 ToolSearch로 먼저 불러온다).
+도구가 없거나 인증·권한 오류면 **리서치를 스폰하지 않고** figma-collector의 BLOCKED 표(`figma-mcp-missing` / `figma-auth` / `figma-permission`)와 같은 사유·해결 방법을 보여주고 멈춘다 —
+collector가 이슈를 다 읽은 뒤에야 BLOCKED를 돌려주면 그만큼 토큰과 왕복이 버려진다. 해결 후 다시 실행하면 Step 2부터 이어간다.
+
 ### 3. 리서치 — 2단계
 
 **3-a. 원문 리서치 — 두 에이전트를 한 메시지에서 병렬로**
@@ -170,6 +179,9 @@ spec 리서치의 **요구 목록(R1..Rn)** 을 기준으로 `todo_items`를 만
   새 문구 처리는 프로필 `문구.mode`를 따른다 — `rule`이면 규칙 문서(`문구.rule`)대로, `hardcode`면 원문 그대로.
   규칙 문서가 키를 만들어 쓰라고 하면 "표에 키 없음"은 open question이 아니다. 문구 **값**이 없을 때만 open question.
 - `size`: todo 6개 이상이거나 3개 이상 모듈/레이어에 걸치면 `large`, 아니면 `small`.
+- **예외 줄**: code 리서치 2-1(예외 케이스)·2-2(호출 경로)의 행이 어느 todo의 동작이면, 그 todo의 acceptance 끝에 `예외: {케이스} → {처리}` 줄로 넣는다 (아직 질문이면 `→ 미정 (질문 #{k})`).
+  답을 받으면(Step 7) 그 줄을 답으로 바꾼다. **여러 todo에 걸친 불변식**(예: "목록 조회는 request_id당 1회 — 성공 콜백이 여러 번 와도", "결과 화면에서 back은 로그인")은 관련 todo **모두**에 같은 줄을 넣는다 —
+  구현이 task로 나뉘어도 각 task가 자기 todo만 보고 불변식을 지키게 하고, spec-conformance-reviewer가 이 줄마다 코드 위치를 대조한다. decisions에만 두면 task 경계에서 끊긴다.
 
 그다음 `${CLAUDE_PLUGIN_ROOT}/references/impl-verification-checklist.md`의 **분석 단계** 세 관점을 수행한다.
 
@@ -179,6 +191,7 @@ spec 리서치의 **요구 목록(R1..Rn)** 을 기준으로 `todo_items`를 만
 - spec 리서치 5번 "근거 없음" 전부
 - code 리서치 2번 "코드로만 답할 수 있는 질문" 전부
 - code 리서치 2-1번 "예외 케이스" 전부 (추천안 그대로 `recommended`로) — 여기서 묻지 않으면 start-work에서 하나씩 멈춘다
+- code 리서치 2-2번 "호출 경로"에서 ⚠️(화면 상태와 맞지 않음)인 행 — 2-1에 이미 질문으로 있으면 하나로
 - code 리서치 1번에서 코드 위치를 못 찾은 요구
 - todo에 대응되지 않은 R
 - 트리거가 원문에 없는 todo
@@ -199,6 +212,7 @@ visual todo들의 `figma_screens`를 collector `index.md` 화면 표의 **그룹
 | `screen_ids` | 그 그룹의 화면 id (예: `S4,S5,S6,S7`) |
 | `issue_key` | `spec-{n}` |
 | `spec_research_file` | `.impl-spec/spec-{n}.research.spec.md` |
+| `scope` (선택) | `delta` — 그룹의 화면이 **기존 화면에 요소 몇 개를 더하거나 바꾸는 것뿐**일 때(예: 로그인 화면에 버튼 하나 추가). 같이 `changed: {바뀌는 요소 설명}`을 넘긴다. 에이전트는 바뀌는 요소와 그 요소가 들어갈 부모 컨테이너만 트리·표로 만들고, AS-IS 영역의 변수·인스턴스는 판정하지 않는다 (판정 범위가 줄어 토큰·질문이 준다). 신규 화면 그룹에는 넘기지 않는다 |
 
 에이전트가 `BLOCKED: …`를 반환하면 Step 3의 Figma BLOCKED와 같이 사유·해결 방법을 보여주고 멈춘다.
 
@@ -264,13 +278,16 @@ base는 Step 0에서 이미 확정됐다 — 여기서 다시 판단하지 않�
 ```
 루프:
   1. open_questions가 남아 있으면 → 묻는다. 모든 질문에 `recommended`(첫 후보)와 추천 이유가 있어야 한다 — 없으면 먼저 채운다.
-     - 4개 이하: AskUserQuestion으로 하나씩 (후보를 선택지로, 추천을 첫 선택지 + "(Recommended)", 근거 없음을 명시)
-     - 5개 이상: 번호·질문·추천(이유) 표를 출력한 뒤 AskUserQuestion 1번 —
-       "전부 추천안대로" / "일부만 바꿈 (Other에 `번호=답` 나열)" / "하나씩 묻기"(→ 4개씩 나눠 묻기)
-       일괄 수락분은 `by:"user (추천안 일괄 수락)"`, 바꾼 것은 `by:"user"`.
+     질문을 줄이지 않는다 — 추천이 틀린 몇 개를 잡는 것이 질문의 가치이고, 어느 것이 틀릴지는 미리 모른다. 대신 **위험도로 묻는 방식을 나눈다**:
+     - **high** = 틀리면 동작·데이터가 달라지는 것: spec 리서치 5번, code 리서치 2번·2-1·2-2, figma 미결정(흐름·정책), proto·범위·서버 계약, `copy:`의 문구 값.
+       질문마다 후보별 **"고르면 사용자가 겪는 동작"** 한 줄을 붙인다 (code 리서치 2-1의 "틀리면" 열, 없으면 메인이 채운다). 같은 질문이 표현에 따라 다르게 답해지지 않게, 결과를 기준으로 고르게 한다.
+       4개씩 AskUserQuestion으로 묻는다 (후보 = 선택지, 추천 = 첫 선택지 + "(Recommended)", description = 근거 + 고르면 겪는 동작).
+     - **low** = 화면 구현 방식만 갈리고 동작은 같은 것: `component:`·`token:`·`asset:`·`layout:` 중 `recommended`에 기존 사용처·값 일치 근거가 있는 것.
+       "기본값으로 적용" 표(번호·대상·기본값·근거)로 한 번에 보여주고 AskUserQuestion 1번 — "기본값 그대로" / "일부만 바꿈 (Other에 `번호=답`)" / "하나씩 묻기".
+       일괄 수락분은 `by:"user (기본값 일괄 수락)"`, 바꾼 것은 `by:"user"`. 근거가 없는 low 질문은 high로 올린다.
      - 다른 질문의 답으로 정해지는 질문(예: 같은 컴포넌트를 쓰면 배경 토큰도 따라감)은 표에 `→ #{번호}를 따름`으로 묶어 하나로 보여준다.
      답을 decisions[{key, question, answer, by, todo_ids}]로 옮기고 open_questions에서 뺀다.
-     답 때문에 todo가 바뀌면 todo를 갱신한다.
+     답 때문에 todo가 바뀌면 todo를 갱신한다 — 예외·불변식 답은 관련 todo **모두**의 `예외:` 줄에 반영한다 (Step 4).
   2. 리포트를 출력하고 "수정할 내용 있으면 말씀해주세요. 없으면 '진행해줘'" 로 턴을 끝낸다.
   3. 응답:
      - 명확한 승인("진행해줘", "ㄱㄱ", "네 시작해") + open_questions 0개 → Step 8

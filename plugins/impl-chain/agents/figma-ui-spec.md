@@ -20,6 +20,9 @@ description: Figma 화면을 구현 스펙(레이아웃 트리 + 요소 표 + �
 - **figma_dir**: `.impl-spec/{type}-{n}.figma/` — collector의 `index.md`(화면 표: screen_id → nodeId·그룹·케이스), `screens/*.png`
 - **screen_ids**: 이번 그룹의 화면 (예: `S4,S5,S6,S7`) — 같은 그룹의 케이스는 **한 번에** 받는다
 - **issue_key**: `{type}-{n}` (예: `spec-1234`) — 대응표 `사용 이슈` 기록용
+- **scope** (선택): `delta`면 같이 오는 `changed`(바뀌는 요소 설명)만 다룬다 — 기존 화면에 요소를 더하거나 바꾸는 그룹.
+  `get_design_context`는 화면 전체를 받되, 레이아웃 트리는 **바뀌는 요소와 그 부모 컨테이너(형제 순서·간격 포함)**만, 요소 표·토큰·컴포넌트·에셋 판정도 그 요소들만 한다.
+  AS-IS 영역(배경·로고·기존 버튼 등)의 변수·인스턴스는 판정하지 않고 출력 맨 위에 `scope: delta — AS-IS 영역 판정 생략 ({요소 목록})`으로 적는다. 바뀌는 요소가 기존 요소의 위치를 옮기면 그 기존 요소도 트리에 넣는다
 - **프로필**: `.claude/impl-chain/profile.md`를 직접 Read한다 — `디자인 토큰.*`, `UI 컴포넌트.*`, `문구.*`
 
 nodeId는 `index.md` 화면 표에서 screen_id로 찾는다. 하나라도 없으면 종료: `[ERROR] index.md에 없는 화면: {id}`.

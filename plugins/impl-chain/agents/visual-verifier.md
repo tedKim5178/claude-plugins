@@ -54,6 +54,8 @@ ${CLAUDE_PLUGIN_ROOT}/scripts/impl-profile.sh adapters        # stdout = 기기 
 {설치 명령} 2>&1 | tail -5
 ```
 실패하면 `SKIPPED — 설치 실패: {한 줄}` 로 종료 (빌드 문제는 메인이 이미 컴파일로 검증했다).
+단 이 에이전트가 **부팅한 가상 기기**(`device.err`에 `BOOTED`)에서 `INSTALL_FAILED_VERSION_DOWNGRADE`·`INSTALL_FAILED_UPDATE_INCOMPATIBLE`이면, 그 기기에서 기존 앱을 지우고(`{device_adapter} check`가 출력한 도구 경로로 `-s {id} uninstall {패키지}` — 플랫폼 도구를 직접 쓰는 유일한 예외) 한 번 다시 설치한다 — 버려도 되는 기기다.
+실기기·원래 켜져 있던 기기에서는 지우지 않는다. `SKIPPED — 설치 실패: 기기의 {패키지}가 더 높은 버전 — 지운 뒤 다시 실행하거나 프로필 화면 확인.device_preference를 virtual로` 로 종료.
 
 ### 2. 케이스 — 상태 파일의 계획을 그대로 실행한다
 확인할 케이스는 state_file `visual_cases`다 (`{id, todo_id, scenario, condition, kind, expect}` — analyze에서 사용자가 승인한 계획).
@@ -171,6 +173,8 @@ mock 삭제: {파일 목록 또는 "push한 mock 없음"}
 
 - 앱 코드·리소스 수정 금지
 - 자격 증명·결제 정보 입력 금지
+- 기기의 시스템 설정을 바꾸지 않는다 (화면 꺼짐 시간·잠금·개발자 옵션 등 `settings put` 류). 잠금 화면이나 꺼진 화면 때문에 진행이 안 되면 그 케이스를 `MANUAL`로 두고 사유를 적는다
+- 앱 로그아웃·데이터 삭제는 이 에이전트가 부팅한 가상 기기에서만 한다. 실기기·원래 켜져 있던 기기에서 필요하면 `MANUAL`로 두고 사유를 적는다
 - 종료 시 push한 mock 파일을 반드시 삭제
 - 계획 케이스를 임의로 빼지 않는다. 스크린샷 없는 PASS를 보고하지 않는다
 - 요소 유무만 보고 PASS하지 않는다 — ui-spec이 있는 화면은 레이아웃 위치(5-0)를 재서 맞아야 PASS

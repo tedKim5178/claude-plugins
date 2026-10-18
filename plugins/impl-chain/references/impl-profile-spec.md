@@ -85,6 +85,7 @@ exit 0이면 통과. 아니면 stderr의 문제 목록을 그대로 보여주고
 | | `device_adapter` | | 기기 어댑터 — 기기 확보·화면 읽기·탭·스크린샷을 하는 스크립트. **쉼표로 여러 개 적으면 우선순위 목록**이다 — visual-verifier가 앞에서부터 기기를 확보해 보고 처음 성공한 것을 쓴다 (예: `builtin:ios-real-device, builtin:ios-device` = 실기기가 연결돼 있으면 실기기, 아니면 시뮬레이터). `builtin:android-device`(체인 공용 — adb·에뮬레이터) / `builtin:ios-device`(체인 공용 — iOS 시뮬레이터, simctl + AXe) / `builtin:ios-real-device`(체인 공용 — USB로 연결한 iOS 실기기, WebDriverAgent) 또는 레포 전용 어댑터의 레포 루트 기준 경로. **없으면 `builtin:android-device`** |
 | | `mock_skill` | mode=device-mock | 서버 응답 mock 스킬 이름 — 레포 `.claude/skills/` 또는 `~/.claude/skills/`에 있어야 한다 |
 | | `mock_skill_real` | | 고른 기기가 실기기(`KIND real`)일 때만 `mock_skill` 대신 쓰는 mock 스킬 (mock을 넣는 통로가 실기기·가상 기기에서 다를 때). 없으면 `mock_skill` |
+| | `device_preference` | | (`builtin:android-device` 전용) `real`(기본 — 연결된 실기기 먼저) \| `virtual`(실기기는 고르지 않고 에뮬레이터만 — 켜져 있는 것, 없으면 AVD 부팅). 실기기의 잠금 화면·로그인 상태·더 높은 버전의 앱 설치(다운그레이드 거부) 때문에 화면 확인이 멈추는 일을 피하려면 `virtual` |
 | | `avd` | | (`builtin:android-device` 전용) 연결 기기가 없을 때 헤드리스로 부팅할 AVD 이름 (없으면 `emulator -list-avds` 첫 번째). 레포 전용 기기 어댑터는 자기 키를 정해 `impl-profile.sh get`으로 읽는다 |
 | | `simulator` | | (`builtin:ios-device` 전용) 부팅된 시뮬레이터가 없을 때 부팅할 시뮬레이터 이름 또는 UDID (없으면 최신 iOS 런타임의 첫 iPhone) |
 | | `device_udid` | | (`builtin:ios-real-device` 전용) 쓸 기기 UDID (없으면 USB로 연결된 첫 기기) |
