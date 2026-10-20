@@ -114,4 +114,22 @@ expect_init "visual_cases id 중복" 1 '.visual_cases[1].id = "V1"' "id 중복: 
 expect_init "visual_cases가 배열 아님" 1 '.visual_cases = "x"' "visual_cases는 배열"
 expect_init "기존 규칙 유지 — open_questions 남음" 1 '.open_questions = ["q"]' "open_questions"
 
+# clean — pr_created에서만, 이 이슈 파일만, 남은 이슈가 없으면 디렉토리째
+rm -f "$STATE"
+$S init spec $N < "$T/base.json" > /dev/null 2>&1 || bad "clean 준비: init 실패"
+mkdir -p .impl-spec/spec-$N.figma/screens .impl-spec/spec-$N.visual
+touch .impl-spec/spec-$N.issue.json .impl-spec/spec-$N.research.spec.md .impl-spec/spec-$N.brief.md .impl-spec/spec-$N.figma/screens/a.png
+$S clean spec $N > /dev/null 2>&1; [ $? = 3 ] && [ -f "$STATE" ] && ok "clean: analyzed면 거부하고 남김" || bad "clean: analyzed인데 지움"
+
+jq '.stage = "pr_created" | .pr_url = "https://example/pull/1"' "$STATE" > "$T/s" && cp "$T/s" "$STATE"
+echo '{}' > .impl-spec/spec-990002.json; echo '{}' > .impl-spec/spec-${N}0.json
+$S clean spec $N > "$T/out" 2> "$T/err" || bad "clean 실패: $(cat "$T/err")"
+[ -z "$(ls -d .impl-spec/spec-$N.* 2>/dev/null)" ] && ok "clean: 이 이슈 파일 전부 삭제" || bad "clean: 남음 $(ls -d .impl-spec/spec-$N.*)"
+[ -f .impl-spec/spec-990002.json ] && [ -f .impl-spec/spec-${N}0.json ] && ok "clean: 다른 이슈(접두사 같은 번호 포함)는 남김" || bad "clean: 다른 이슈까지 지움"
+
+rm .impl-spec/spec-990002.json .impl-spec/spec-${N}0.json
+$S init spec $N < "$T/base.json" > /dev/null 2>&1 || bad "clean 준비: 재init 실패"
+jq '.stage = "pr_created" | .pr_url = "https://example/pull/1"' "$STATE" > "$T/s" && cp "$T/s" "$STATE"
+$S clean spec $N > /dev/null 2>&1 && [ ! -e .impl-spec ] && ok "clean: 남은 이슈 없으면 .impl-spec/ 삭제" || bad "clean: .impl-spec/ 남음"
+
 [ $FAIL = 0 ] && echo "ALL PASS" || { echo "FAILED"; exit 1; }

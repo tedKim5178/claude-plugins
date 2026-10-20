@@ -13,6 +13,7 @@
 #   impl-state.sh add-commit <type> <number> [sha]  commits 배열에 추가 (기본: HEAD)
 #   impl-state.sh stage <type> <number> <stage>     단계 전이 (조건 검증)
 #   impl-state.sh check-branch <type> <number>      현재 브랜치가 상태 파일의 branch와 같은지
+#   impl-state.sh clean <type> <number>             pr_created면 이 이슈의 .impl-spec 파일을 전부 삭제 (남은 이슈가 없으면 디렉토리째)
 #
 # type: spec   (파일 이름 spec-4895.json — 이슈 종류를 키에 남겨 둔다)
 # 종료 코드: 0 성공, 1 사용법/검증 실패, 2 파일 없음, 3 단계 전이 불가
@@ -251,8 +252,24 @@ case "$cmd" in
     echo "$have"
     ;;
 
+  clean)
+    [ $# -eq 2 ] || die "usage: clean <type> <number>"
+    f="$(require_file "$1" "$2")"
+    k="$(key_of "$1" "$2")"
+    cur="$(jq -r .stage "$f")"
+    [ "$cur" = "pr_created" ] || die "pr_created 단계에서만 지운다 (현재 $cur) — 진행 중인 작업 파일을 지우지 않는다" 3
+    for p in "$DIR/$k".*; do      # spec-4895.json, .issue.json, .research.*.md, .brief.md, .figma/, .visual/ … (spec-48950.* 는 안 걸린다)
+      [ -e "$p" ] || continue
+      rm -rf -- "$p"; echo "삭제: ${p#"$ROOT"/}"
+    done
+    # 다른 이슈 파일이 없으면 .impl-spec/ 통째로 (impl-setup 작업 파일 포함)
+    if ! compgen -G "$DIR/spec-*" > /dev/null; then
+      rm -rf -- "$DIR"; echo "삭제: .impl-spec/"
+    fi
+    ;;
+
   *)
-    sed -n '2,18p' "$0" >&2
+    sed -n '2,19p' "$0" >&2
     exit 1
     ;;
 esac

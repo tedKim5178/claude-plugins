@@ -24,6 +24,7 @@ invocable: true
 analyze-spec  ─ init ─>  spec-{n}.json (analyzed)   + research.spec.md / research.code.md
 start-work    ─ stage ─>                (implemented) — 스크립트가 테스트·리뷰·todo 완료를 검사. 커밋은 하나, 작업용 테스트 코드는 커밋 전 삭제(프로필 `빌드.test_retention`)
 create-pr     ─ stage ─>                (pr_created)
+impl-spec     ─ clean ─>  .impl-spec/spec-{n}.* 삭제
 ```
 
 ## 사용자 승인
@@ -88,6 +89,17 @@ base·브랜치·todo·검증 커맨드는 impl-state.sh로 읽을 것. Step 0�
 
 Skill tool로 `create-pr` 호출: `spec {n}`
 
+끝나면 `impl-state.sh get spec {n} .stage`가 `pr_created`인지 확인한다. 아니면(push 거절·PR 불가 등) Step 4로 가지 않는다 — 재개에 상태 파일이 필요하다.
+
+### 4. 작업 파일 정리
+
+완료 출력에 쓸 값(`issue_title`·`branch`·`base_branch`·`previous_branch`·todo 집계·`verification`·`apps`·`pr_url`)을 **먼저 읽어 둔 뒤** 지운다. 묻지 않는다.
+```bash
+${CLAUDE_PLUGIN_ROOT}/scripts/impl-state.sh clean spec {n}
+```
+이 이슈의 `.impl-spec/spec-{n}.*`(상태 파일·이슈 원문·리서치·브리프·Figma·화면 확인 스크린샷)를 지우고, 다른 이슈 파일이 없으면 `.impl-spec/`를 통째로 지운다.
+`pr_created`가 아니면 스크립트가 거부한다(exit 3) — 그때는 지우지 않고 그대로 보고한다.
+
 ---
 
 ## 완료 출력
@@ -99,8 +111,9 @@ Skill tool로 `create-pr` 호출: `spec {n}`
 구현 항목: ✅ {done 수} / ⚠️ 수동 확인 {manual·visual skipped 수} / ➖ 범위 외 {deferred 수}
 검증: 테스트 {tests} / 화면 {visual} / 리뷰 스펙 {spec}·품질 {quality}
 확인한 앱: {apps — 없으면 줄 생략}
-화면 리포트: {verification.visual_report — 앱별이면 앱마다 한 줄, 없으면 줄 생략}
+화면 확인: {verification.visual}   (리포트·스크린샷은 Step 4에서 지워졌다 — create-pr 확인 화면에서 이미 봤다)
 PR: {pr_url}
+작업 파일: .impl-spec/spec-{n}.* 삭제됨
 
 ⚠️ 남은 확인 사항: {verification.notes + 수동 확인 todo. 없으면 생략}
 ```
@@ -123,5 +136,5 @@ analyze-spec의 리서치+확인 루프가 요구 탐색·계획을, 상태 파�
 - **base = 분석(analyze-spec)을 시작한 로컬 브랜치.** 고르거나 묻지 않는다. 작업 브랜치는 그 로컬 tip에서 딴다 (origin 미사용). 다른 base가 필요하면 그 브랜치로 옮겨 다시 실행한다.
   상태 파일이 생긴 뒤(stage analyzed 이후) 재개하면 지금 브랜치와 상관없이 상태 파일의 `base_branch`를 쓴다.
 - 작업은 **메인 워크스페이스**에서 브랜치를 바꿔 진행한다 (워크트리를 만들지 않는다). 시작 전 커밋 안 된 변경이 있으면 start-work가 멈춘다.
-- 리뷰어 피드백 반영·머지·브랜치 정리는 이 스킬 범위 밖이다. `.impl-spec/` 파일은 필요 없어지면 사용자가 직접 지운다.
+- 리뷰어 피드백 반영·머지·브랜치 정리는 이 스킬 범위 밖이다. `.impl-spec/` 작업 파일은 PR이 만들어지면 Step 4에서 자동으로 지운다 (중간에 멈춘 실행은 재개용으로 남는다).
 - 하위 스킬의 내부 규칙(force push 금지 등)은 그대로 적용된다.

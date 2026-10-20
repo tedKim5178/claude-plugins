@@ -17,6 +17,7 @@ $S todo  spec 4895 T1 done         # todo 하나 상태 갱신
 $S add-commit spec 4895            # HEAD를 commits에 추가
 $S stage spec 4895 implemented     # 전이 — 조건 미달이면 거부(exit 3)
 $S check-branch spec 4895          # 현재 브랜치 == .branch 확인
+$S clean spec 4895                 # pr_created일 때만 spec-4895.* 전부 삭제 (남은 이슈가 없으면 .impl-spec/ 째로) — impl-spec 마지막 단계
 ```
 
 `.impl-spec/` 안의 `*.issue.json`, `*.draft.json`은 상태 파일이 아니다 (`find`가 무시한다).
