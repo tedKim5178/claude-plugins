@@ -214,6 +214,10 @@ Step 4의 테스트가 전부 통과해야 한다. 기존 테스트가 깨지면
 - 에이전트는 상태 파일 `visual_cases`(analyze에서 승인된 확인 계획)를 실행하고 `{output_dir}/report.html`(조건별 스크린샷 비교)을 만든다.
   돌아오면 메인이 **스크린샷을 직접 열어**(대상 케이스 전부 + 회귀 케이스 하나 이상 Read) 에이전트의 판정과 맞는지 본 뒤 기록한다:
   `echo '{"verification":{"visual_report":".impl-spec/{type}-{n}.visual/report.html"}}' | $S merge {type} {n}`
+- **기록한 뒤 리포트를 바로 연다** (묻지 않는다 — 앱이 여러 개면 모든 앱이 끝난 뒤 한 번에, FAIL을 고쳐 다시 돌렸으면 새 리포트로 다시):
+  `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/open-reports.py now {visual_report 경로들}`
+  `OPENED`면 "화면 확인 리포트를 브라우저로 열었습니다: {경로} — {REPORT 줄의 집계}" 한 줄, `PATH`(열 수단 없음)면 경로를 링크로 보여준다. 리뷰(Step 9)는 기다리지 않고 이어서 진행한다.
+  여기서 연 리포트는 플러그인의 턴 끝 훅(같은 스크립트)이 다시 열지 않는다.
 - `SKIPPED`면 사유를 기록하고 진행 — visual todo는 PR에 "수동 확인 필요"로 남고, create-pr이 push 확인 화면 맨 위에 경고로 띄운다.
 - `NOT_RUN`(계획에 있었으나 못 본 케이스)·`MANUAL`은 `verification.notes`에 케이스 id와 사유를 그대로 옮긴다. 대상(`target`) 케이스가 NOT_RUN·MANUAL인 todo의 note는 `visual: pass`가 아니라 `visual: skipped — {사유}`다.
 - FAIL 케이스는 Step 9 전에 고치고 Step 6부터 다시 (고친 뒤 에이전트를 다시 스폰해 리포트를 새로 만든다).
