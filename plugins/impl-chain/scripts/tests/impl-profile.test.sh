@@ -31,9 +31,12 @@ expect_exit "없는 키 exit 2" 2 $P get 빌드.nope
 expect_exit "없는 섹션 exit 2" 2 $P get 없음.mode
 
 echo "adapter"
-[ "$($P adapter 이슈.spec_adapter)" = "$SCRIPTS/gh-spec-issue.sh" ] && ok "builtin:gh-spec-issue → 공용 어댑터" || bad "spec adapter=$($P adapter 이슈.spec_adapter)"
+[ "$($P adapter 이슈.spec_adapter)" = "$SCRIPTS/spec-issue.sh" ] && ok "builtin:spec-issue → 공용 어댑터" || bad "spec adapter=$($P adapter 이슈.spec_adapter)"
+F=$(variant old-name-adapter <<< 's#^- spec_adapter: .*#- spec_adapter: builtin:gh-spec-issue#')
+[ "$(IMPL_PROFILE="$F" $P adapter 이슈.spec_adapter)" = "$SCRIPTS/spec-issue.sh" ] && ok "예전 이름 builtin:gh-spec-issue도 공용 어댑터로" || bad "old name"
+IMPL_PROFILE="$F" $P check --for analyze-spec > /dev/null 2>&1 && ok "예전 이름으로도 게이트 통과" || bad "old name check"
 F=$(variant legacy-adapter <<< 's#^- spec_adapter: .*#- spec_adapter: .claude/scripts/gh-spec-issue.sh#')
-[ "$(IMPL_PROFILE="$F" $P adapter 이슈.spec_adapter)" = "$SCRIPTS/gh-spec-issue.sh" ] && ok "예전 레포 경로 값도 builtin으로" || bad "legacy"
+[ "$(IMPL_PROFILE="$F" $P adapter 이슈.spec_adapter)" = "$SCRIPTS/spec-issue.sh" ] && ok "예전 레포 경로 값도 builtin으로" || bad "legacy"
 mkdir -p tools && printf '#!/bin/bash\n' > tools/my-adapter.sh && chmod +x tools/my-adapter.sh
 F=$(variant repo-adapter <<< 's#^- spec_adapter: .*#- spec_adapter: tools/my-adapter.sh#')
 [ "$(IMPL_PROFILE="$F" $P adapter 이슈.spec_adapter)" = "$(pwd -P)/tools/my-adapter.sh" ] && ok "레포 전용 어댑터는 레포 경로" || bad "repo adapter=$(IMPL_PROFILE="$F" $P adapter 이슈.spec_adapter)"
@@ -179,5 +182,10 @@ expect_exit "빌드.test_retention 값 범위 밖" 1 env IMPL_PROFILE="$F" $P ch
 grep -q "test_retention" "$T/err" && ok "test_retention 값 오류 보고" || bad "test_retention 값 오류 보고: $(cat "$T/err")"
 F=$(variant remote <<< 's/^- commit_format: .*/&\n- remote: upstream/')
 expect_exit "git.remote 선택 키" 0 env IMPL_PROFILE="$F" $P check
+F=$(printf '/^- commit_format:/a\\\n- platform: gitlab\n' | variant platform-ok)   # bash 3.2: $( ) 안 heredoc 금지
+expect_exit "git.platform gitlab" 0 env IMPL_PROFILE="$F" $P check
+F=$(printf '/^- commit_format:/a\\\n- platform: bitbucket\n' | variant platform-bad)
+expect_exit "git.platform 값 범위 밖" 1 env IMPL_PROFILE="$F" $P check
+grep -q "git.platform" "$T/err" && ok "git.platform 값 오류 보고" || bad "git.platform 값 오류 보고: $(cat "$T/err")"
 
 [ $FAIL = 0 ] && echo "ALL PASS" || { echo "FAILED"; exit 1; }

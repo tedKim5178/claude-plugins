@@ -1,7 +1,7 @@
 # impl-chain 프로필 — 테스트 fixture (GitHub + Android 일반 레포)
 
 ## 이슈
-- spec_adapter: builtin:gh-spec-issue
+- spec_adapter: builtin:spec-issue
 - spec_repo: example-org/planning
 - spec_link_regex: planning/issues/([0-9]+)
 

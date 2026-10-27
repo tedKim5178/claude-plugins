@@ -41,7 +41,7 @@ Step 7(확인 루프)에서 이 형식 그대로 출력한다.
 | todo | 서버 | 클라 |
 |------|------|------|
 
-**proto 의존성**: ✅ available / ➖ 해당 없음 / ⛔ missing → {사용자 선택} / 🧪 temp-local (서버 PR 원문 임시 반영 — 로컬 테스트 전용, PR 불가)
+**proto 의존성**: ✅ available / ➖ 해당 없음 / ⛔ missing → {사용자 선택} / 🧪 temp-local (서버 PR 원문 임시 반영 — 로컬 테스트 전용, push·PR 금지)
 {proto 변경 요약 표 — 서버 작업 없거나 프로필 `서버 계약.mode`가 `none`이면 생략}
 
 ---

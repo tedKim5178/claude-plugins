@@ -1,6 +1,6 @@
 #!/bin/bash
-# detect-base.sh / setup-branch.sh / check-pr-ready.sh 테스트. 실행: scripts/tests/branch.test.sh
-# 임시 git 레포(+ bare remote)에서 돌린다. 이 레포 자체는 건드리지 않는다.
+# detect-base.sh / setup-branch.sh 테스트. 실행: scripts/tests/branch.test.sh
+# 임시 git 레포에서 돌린다. 이 레포 자체는 건드리지 않는다.
 set -uo pipefail
 source "$(dirname "$0")/lib.sh"
 T=$(mktemp -d)
@@ -39,30 +39,6 @@ expect "없는 base면 exit 4" 4 "$SCRIPTS/setup-branch.sh" no-such-base feat/2-
 echo x > f && git add f
 expect "커밋 안 된 변경 있으면 exit 2" 2 "$SCRIPTS/setup-branch.sh" feat/local-only feat/3-work
 git reset -q --hard
-
-echo "check-pr-ready"
-git init -q --bare "$T/remote.git" && git remote add origin "$T/remote.git"
-git switch -q feat/1-work
-expect "base가 origin에 없으면 exit 3" 3 "$SCRIPTS/check-pr-ready.sh" feat/local-only
-git push -q origin feat/local-only 2>/dev/null
-expect "base가 origin에 있으면 exit 0" 0 "$SCRIPTS/check-pr-ready.sh" feat/local-only
-grep -q "WARN" "$T/err" && bad "앞선 커밋 없는데 WARN" || ok "같으면 WARN 없음"
-git switch -q feat/local-only && git commit -q --allow-empty -m ahead && git switch -q feat/1-work
-expect "로컬 base가 origin보다 앞서도 exit 0" 0 "$SCRIPTS/check-pr-ready.sh" feat/local-only
-grep -q "WARN" "$T/err" && ok "앞선 커밋 WARN" || bad "WARN 없음"
-expect "temp proto면 exit 5" 5 "$SCRIPTS/check-pr-ready.sh" feat/local-only temp-local
-git remote set-url origin "$T/no-such-remote.git"
-expect "origin 조회 실패면 exit 4" 4 "$SCRIPTS/check-pr-ready.sh" feat/local-only
-
-echo "check-pr-ready — 프로필 git.remote"
-git remote set-url origin "$T/remote.git"
-git init -q --bare "$T/up.git" && git remote add upstream "$T/up.git"
-mkdir -p .claude/impl-chain && printf '## git\n- remote: upstream\n' > .claude/impl-chain/profile.md
-expect "git.remote 원격에 base가 없으면 exit 3 (origin에 있어도)" 3 "$SCRIPTS/check-pr-ready.sh" feat/local-only
-grep -q "upstream" "$T/err" && ok "원격 이름을 메시지에" || bad "메시지: $(cat "$T/err")"
-git push -q upstream feat/local-only 2>/dev/null
-expect "git.remote 원격에 있으면 exit 0" 0 "$SCRIPTS/check-pr-ready.sh" feat/local-only
-[ "$out" = "upstream" ] && ok "stdout = 쓸 원격 이름" || bad "stdout=$out"
 
 echo
 [ "$FAIL" = 0 ] && echo "ALL PASS" || { echo "FAILED"; exit 1; }

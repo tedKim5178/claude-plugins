@@ -218,7 +218,7 @@ Step 4의 테스트가 전부 통과해야 한다. 기존 테스트가 깨지면
   `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/open-reports.py now {visual_report 경로들}`
   `OPENED`면 "화면 확인 리포트를 브라우저로 열었습니다: {경로} — {REPORT 줄의 집계}" 한 줄, `PATH`(열 수단 없음)면 경로를 링크로 보여준다. 리뷰(Step 9)는 기다리지 않고 이어서 진행한다.
   여기서 연 리포트는 플러그인의 턴 끝 훅(같은 스크립트)이 다시 열지 않는다.
-- `SKIPPED`면 사유를 기록하고 진행 — visual todo는 PR에 "수동 확인 필요"로 남고, create-pr이 push 확인 화면 맨 위에 경고로 띄운다.
+- `SKIPPED`면 사유를 기록하고 진행 — visual todo는 "수동 확인 필요"로 남고, 완료 보고(Step 12) 맨 위에 경고로 띄운다.
 - `NOT_RUN`(계획에 있었으나 못 본 케이스)·`MANUAL`은 `verification.notes`에 케이스 id와 사유를 그대로 옮긴다. 대상(`target`) 케이스가 NOT_RUN·MANUAL인 todo의 note는 `visual: pass`가 아니라 `visual: skipped — {사유}`다.
 - FAIL 케이스는 Step 9 전에 고치고 Step 6부터 다시 (고친 뒤 에이전트를 다시 스폰해 리포트를 새로 만든다).
 
@@ -261,7 +261,7 @@ Step 4의 테스트가 전부 통과해야 한다. 기존 테스트가 깨지면
 
 ### 10. 커밋 (한 번)
 
-커밋 허락 규칙은 impl-spec "체인 공통 규칙"을 따른다 (analyze 승인 = 이 브랜치 커밋 허락, push는 별도).
+커밋 허락 규칙은 impl-spec "체인 공통 규칙"을 따른다 (analyze 승인 = 이 브랜치 커밋 허락. push·PR은 체인이 하지 않는다).
 ```bash
 git log --oneline -10      # 스타일 파악
 git add {수정·신규 파일들}   # -A / . 금지 — 관련 없는 파일이 섞인다
@@ -287,11 +287,13 @@ $S stage {type} {n} implemented
 `stage`가 거부하면 빠진 항목을 **실제로 채운다** (값만 바꿔 통과시키지 않는다).
 
 ### 12. 완료 보고
+- `verification.visual`이 skipped면 맨 위에 `⚠️ 화면 확인을 하지 않았습니다 — {사유}`. `proto_dependency.status`가 `temp-local`이면 `⛔ 서버 proto를 임시로 옮긴 로컬 테스트 전용 브랜치 — push·PR 금지`
 - 브랜치 / base / 이전 브랜치 (`previous_branch` — "메인 워크스페이스가 {branch}로 전환됨")
 - todo별 결과 (T1 ✅ unit / T2 ✅ visual / T4 ⚠️ manual — 사유)
 - 테스트·리뷰·화면 결과 — 화면 확인을 했으면 **리포트 경로(`verification.visual_report`)와 확인하지 못한 것**을 함께 (사용자가 열어 볼 수 있게)
 - 확인한 앱 (`{apps}` — 있을 때): 앱마다 컴파일·테스트·화면 결과와 리포트 경로
 - 커밋 해시 + 메시지
+- push·PR은 하지 않는다 — 사용자가 직접 한다 (`git push -u {remote} {branch}` — `{remote}` = 프로필 `git.remote`, 없으면 origin).
 
 ---
 
@@ -302,4 +304,4 @@ $S stage {type} {n} implemented
 - 컴파일 + 테스트 + 리뷰 통과 후에만, **한 번** 커밋한다 (large도 task별로 나누지 않는다).
 - 프로필 `빌드.test_retention`이 `discard`(기본)면 이번 작업에서 추가한 테스트 코드는 통과 확인·리뷰 뒤 지우고 커밋에 넣지 않는다 (Step 9-1).
 - `$S` (impl-state.sh) 호출은 **체인 경로에서만** 한다. 단독 경로에는 상태 파일이 없다.
-- `.proto` 파일은 수정하지 않는다. **예외**: `proto_dependency.status`가 `temp-local`이면 T0에 한해 acceptance에 적힌 서버 PR 원문 정의를 글자 그대로 옮긴다 (로컬 테스트 전용 — create-pr이 PR을 거부한다).
+- `.proto` 파일은 수정하지 않는다. **예외**: `proto_dependency.status`가 `temp-local`이면 T0에 한해 acceptance에 적힌 서버 PR 원문 정의를 글자 그대로 옮긴다 (로컬 테스트 전용 — 완료 보고에 push·PR 금지 경고를 띄운다).

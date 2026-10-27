@@ -33,7 +33,7 @@ description: impl-setup이 스폰하는 읽기 전용 레포 분석 에이전트
      **틀린 variant가 실패하는 것도** 한 번 확인한다. zsh에서는 `$m:t`가 변수 수식어로 먹으니 `${m}`)
    - **화이트라벨 앱**: 같은 코드로 여러 앱을 빌드하면(Android 앱 구분 flavor dimension — `productFlavors`의 label·brand 등 / iOS 앱 타깃·스킴이 여럿) `빌드.apps`를 제안한다 — 앱마다 `이름=값`(값 = 태스크·스킴 이름에 들어가는 문자열, 예: `gmaas=Gmaas` → `installGmaasDevDebug`), 첫 항목 = 지금 프로필·CI가 쓰는 기본 앱. 그리고 compile·test·install·`module_variants`에서 앱이 바뀌는 자리를 `{app}`으로 바꾼 템플릿을 함께 제안한다. **`{app}`을 넣은 명령은 앱 두 개 이상으로 채워 dry-run으로 태스크·스킴이 있는지 확인한다** (앱마다 없는 태스크가 있을 수 있다 — 그 앱은 빼고 근거를 적는다).
    - 이슈 링크 정규식: 실제 최근 이슈 본문·댓글에 돌려서 잡히는 것/안 잡혀야 하는 것(앱 레포 자신의 링크 등)을 확인.
-   - 도구: 기기 도구(Android면 `android-device.sh check` — adb / iOS면 `ios-device.sh check` — simctl + AXe), `gh auth status` 등. PATH에 없으면 실제 위치와 함께 보고.
+   - 도구: 기기 도구(Android면 `android-device.sh check` — adb / iOS면 `ios-device.sh check` — simctl + AXe), 플랫폼 CLI 로그인(`forge.sh platform`이 github면 `gh auth status`, gitlab이면 `glab auth status --hostname {host}`) 등. PATH에 없으면 실제 위치와 함께 보고.
 4. **토큰**: 시맨틱 층 토큰 정의 파일(색·타이포를 용도 이름으로 선언한 파일)을 찾아 `source`로 제안한다. 팔레트 파일(원색 단계값)은 넣지 않는다 — 값이 겹치는 토큰이 많아져 질문이 넘친다.
    코드에 Figma 변수 이름이 결정적으로 연결돼 있으면(예: `val Body: Color // text/body` 주석, Figma 이름에서 기계적으로 유도되는 명명 규칙) 그 근거로 **대응표 시드 행 후보**를 만들고
    근거 파일·패턴·커버리지(연결된 토큰 수/전체)를 적는다. 연결이 없으면 **빈 대응표**를 제안한다 (체인이 쓰면서 쌓는다). 토큰 정의 파일이 없으면 `none`.
@@ -45,7 +45,7 @@ description: impl-setup이 스폰하는 읽기 전용 레포 분석 에이전트
 
 | 영역 | 볼 것 |
 |------|------|
-| 이슈 | `gh repo view`, 최근 이슈 30개 본문·댓글의 외부 레포 링크(기획 레포·proto 레포 후보, 빈도), 마일스톤 사용 여부 |
+| 이슈 | `${CLAUDE_PLUGIN_ROOT}/scripts/forge.sh repo`·`platform`(GitHub·GitLab — 판정 실패면 `git.platform` 질문 후보), 최근 이슈 30개(목록은 `gh issue list` / `glab issue list`, 본문·댓글은 `forge.sh issue`·`comments`) 본문·댓글의 외부 레포 링크(기획 레포·proto 레포 후보, 빈도 — 다른 호스트면 `host/owner/name`으로), 마일스톤 사용 여부 |
 | 서버 계약 | proto/OpenAPI/GraphQL 스키마 위치, 외부 계약 레포 링크 |
 | git | 기본 브랜치, release/hotfix 패턴, 브랜치·커밋 관례 분포(원칙 2) |
 | 빌드 | 빌드 도구, 모듈 목록, 모듈 유형별 compile/test/install 태스크(원칙 3), 테스트 소스 위치 |
@@ -106,7 +106,7 @@ description: impl-setup이 스폰하는 읽기 전용 레포 분석 에이전트
 - 규칙 / 금지 / 확인(명령·등급) — 관찰만으로 쓴 부분과 정책 질문에 달린 부분을 구분
 
 ## 환경 이슈
-- 예: 기기 도구(adb 등)가 PATH에 없음(실제 위치), gh 토큰 scope 부족
+- 예: 기기 도구(adb 등)가 PATH에 없음(실제 위치), gh·glab 미로그인·토큰 scope 부족
 ```
 
 ## 제약

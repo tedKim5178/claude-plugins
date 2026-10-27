@@ -25,8 +25,9 @@ issue_json_file 또는 output_file이 없으면 조사하지 말고 종료:
 ## 조사 절차
 
 ### 1. 기획서 본문 + 댓글
-- 본문에 GitHub 파일 링크가 있으면 조회:
-  `gh api repos/{프로필 이슈.spec_repo}/contents/{경로} --jq '.content' | base64 -d`
+- 이슈·PR·파일 조회는 `{F}` = `${CLAUDE_PLUGIN_ROOT}/scripts/forge.sh`(명령에 글자 그대로)로 한다 — GitHub·GitLab을 레포마다 알아서 고른다. `gh`·`glab`을 직접 부르지 않는다.
+- 본문에 기획 레포 파일 링크가 있으면 조회:
+  `jq -r '.spec.body // ""' {issue_json_file} | {F} refs {프로필 이슈.spec_repo}`가 `file {ref} {path}`를 뽑아 주면 `{F} file {프로필 이슈.spec_repo} {path} {ref}`
 - **댓글을 시간순으로 전부 읽는다.** 본문과 충돌하면 둘 다 기록하고 어느 쪽이 최신인지 명시한다.
 - **문구 키 표**(프로필 `이슈.string_table_hint`, 예: `키 | ko` 표)가 댓글에 있으면 **가장 마지막 버전의 표를 원문 그대로** 옮긴다. 이전 표와 달라진 키·값, "기존 키 재사용" 메모도 함께.
   이 표가 화면 문구의 최종 근거다 (Figma 텍스트보다 우선).
@@ -34,14 +35,13 @@ issue_json_file 또는 output_file이 없으면 조사하지 말고 종료:
 
 ### 2. proto (서버 작업 단서가 있을 때)
 프로필 `서버 계약.mode`가 `none`이면 이 절을 건너뛰고 출력 4번에 "해당 없음 (프로필 서버 계약 none)".
-`proto-repo`이면 아래 `{R}`에 프로필 `서버 계약.repo` 값을 **글자 그대로** 넣어 실행한다 (셸 변수로 두지 않는다 — 호출 사이에 남지 않음). 입력 파일 전체에서 링크 추출:
+`proto-repo`이면 아래 `{R}`에 프로필 `서버 계약.repo` 값을 **글자 그대로** 넣어 실행한다 (셸 변수로 두지 않는다 — 호출 사이에 남지 않음). 입력 파일 전체에서 링크 추출 (GitHub `pull`·GitLab `-/merge_requests` 둘 다):
 ```bash
-jq -r '[.. | .body? // empty] | join("\n")' {issue_json_file} \
-  | grep -oE "github\.com/{R}/(pull|commit|blob)/[^ )\]\"]+" | sort -u
+jq -r '[.. | .body? // empty] | join("\n")' {issue_json_file} | {F} refs {R}     # → `pr {n}` / `commit {sha}` / `file {ref} {path}` 줄
 ```
-- PR: `gh pr diff {n} --repo {R}` — **직접 실행해서 diff 원문을 읽는다.**
-- 커밋: `gh api "repos/{R}/commits/{sha}" --jq '.files[] | {filename, patch}'`
-- 파일: `gh api "repos/{R}/contents/{path}" --jq '.content' | base64 -d`
+- PR(MR): `{F} pr-diff {R} {n}` — **직접 실행해서 diff 원문을 읽는다.**
+- 커밋: `{F} commit-files {R} {sha}` → `[{filename, patch}]`
+- 파일: `{F} file {R} {path} {ref}`
 - RPC명·메시지 필드·enum 값은 **원문 그대로** 남긴다. 링크가 없으면 저장소를 억지로 검색하지 않고 "링크 없음".
 
 ### 3. 요구 원자화 (가장 중요)

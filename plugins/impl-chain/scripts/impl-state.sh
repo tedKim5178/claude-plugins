@@ -13,7 +13,8 @@
 #   impl-state.sh add-commit <type> <number> [sha]  commits 배열에 추가 (기본: HEAD)
 #   impl-state.sh stage <type> <number> <stage>     단계 전이 (조건 검증)
 #   impl-state.sh check-branch <type> <number>      현재 브랜치가 상태 파일의 branch와 같은지
-#   impl-state.sh clean <type> <number>             pr_created면 이 이슈의 .impl-spec 파일을 전부 삭제 (남은 이슈가 없으면 디렉토리째)
+#   impl-state.sh clean <type> <number>             implemented면 이 이슈의 .impl-spec 작업 파일을 삭제 — 화면 확인 리포트(.visual/)만 남긴다
+#                                                   (상태 파일이 없는 다른 이슈의 남은 리포트는 지운다, 남은 게 없으면 디렉토리째)
 #
 # type: spec   (파일 이름 spec-4895.json — 이슈 종류를 키에 남겨 둔다)
 # 종료 코드: 0 성공, 1 사용법/검증 실패, 2 파일 없음, 3 단계 전이 불가
@@ -181,7 +182,7 @@ case "$cmd" in
     problems="$(sed '/^$/d' <<< "$problems")"
     [ -z "$problems" ] || die $'검증 실패 — 기록하지 않음:\n'"$problems"
     mkdir -p "$DIR"
-    jq --arg now "$(now)" '. + {schema:3, stage:"analyzed", commits:[], verification:{}, pr_url:null, updated_at:$now}' \
+    jq --arg now "$(now)" '. + {schema:3, stage:"analyzed", commits:[], verification:{}, updated_at:$now}' \
       <<< "$input" | write_atomic "$f"
     echo "$f"
     ;;
@@ -220,7 +221,7 @@ case "$cmd" in
     ;;
 
   stage)
-    [ $# -eq 3 ] || die "usage: stage <type> <number> <analyzed|implemented|pr_created>"
+    [ $# -eq 3 ] || die "usage: stage <type> <number> <analyzed|implemented>"
     f="$(require_file "$1" "$2")"
     cur="$(jq -r .stage "$f")"; next="$3"
     case "$cur>$next" in
@@ -234,9 +235,6 @@ case "$cmd" in
           (.todo_items[] | .id as $id | select((.status // "") | IN("done","deferred") | not) | "todo \($id) status 미완료")
         ' "$f")"
         [ -z "$miss" ] || die $'implemented로 전이 불가:\n'"$miss" 3
-        ;;
-      "implemented>pr_created")
-        jq -e '(.pr_url // "") != ""' "$f" > /dev/null || die "pr_url 없음 — 먼저 merge로 기록" 3
         ;;
       *) die "허용되지 않는 전이: $cur → $next" 3 ;;
     esac
@@ -257,12 +255,19 @@ case "$cmd" in
     f="$(require_file "$1" "$2")"
     k="$(key_of "$1" "$2")"
     cur="$(jq -r .stage "$f")"
-    [ "$cur" = "pr_created" ] || die "pr_created 단계에서만 지운다 (현재 $cur) — 진행 중인 작업 파일을 지우지 않는다" 3
-    for p in "$DIR/$k".*; do      # spec-4895.json, .issue.json, .research.*.md, .brief.md, .figma/, .visual/ … (spec-48950.* 는 안 걸린다)
+    # pr_created = 체인이 PR까지 만들던 때의 마지막 단계 (그때 만든 상태 파일)
+    case "$cur" in implemented|pr_created) ;; *) die "implemented 단계에서만 지운다 (현재 $cur) — 진행 중인 작업 파일을 지우지 않는다" 3 ;; esac
+    for p in "$DIR/$k".*; do      # spec-4895.json, .issue.json, .research.*.md, .brief.md, .figma/ … (spec-48950.* 는 안 걸린다)
       [ -e "$p" ] || continue
+      [ "$p" = "$DIR/$k.visual" ] && { echo "남김: ${p#"$ROOT"/} (화면 확인 리포트)"; continue; }
       rm -rf -- "$p"; echo "삭제: ${p#"$ROOT"/}"
     done
-    # 다른 이슈 파일이 없으면 .impl-spec/ 통째로 (impl-setup 작업 파일 포함)
+    # 상태 파일이 없는 다른 이슈의 리포트 = 예전 실행이 남긴 것 → 지운다
+    for p in "$DIR"/spec-*.visual; do
+      [ -e "$p" ] || continue
+      [ "$p" = "$DIR/$k.visual" ] || [ -f "${p%.visual}.json" ] || { rm -rf -- "$p"; echo "삭제: ${p#"$ROOT"/} (지난 리포트)"; }
+    done
+    # 남은 게 없으면 .impl-spec/ 통째로 (impl-setup 작업 파일 포함)
     if ! compgen -G "$DIR/spec-*" > /dev/null; then
       rm -rf -- "$DIR"; echo "삭제: .impl-spec/"
     fi

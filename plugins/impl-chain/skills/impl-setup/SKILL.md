@@ -30,15 +30,19 @@ invocable: true
 
 ## 실행 단계
 
-### 0-0. 전제 확인 (GitHub 레포 기준)
+### 0-0. 전제 확인 (GitHub·GitLab)
 
 ```bash
-for t in git gh jq python3; do command -v $t > /dev/null || echo "없음: $t"; done
-gh auth status 2>&1 | head -5                      # 로그인·scope
-git remote -v                                       # 원격이 둘 이상이면 Step 3에서 PR용 원격(git.remote)을 묻는다
+for t in git jq python3; do command -v $t > /dev/null || echo "없음: $t"; done
+git remote -v                                       # 원격이 둘 이상이면 Step 3에서 앱 레포 원격(git.remote)을 묻는다
+${CLAUDE_PLUGIN_ROOT}/scripts/forge.sh repo         # 앱 레포 host/path (ssh 별칭 등으로 호스트가 이상하면 Step 3에서 git.host를 묻는다)
+${CLAUDE_PLUGIN_ROOT}/scripts/forge.sh platform     # github | gitlab — 판정 실패(exit 1)면 Step 3에서 git.platform을 묻는다
+gh auth status 2>&1 | head -5                       # github이면 (GitHub Enterprise면 --hostname {host})
+glab auth status --hostname {host} 2>&1 | head -5   # gitlab이면
 git check-ignore -q .impl-spec/x && echo ".impl-spec ignored" || echo ".impl-spec NOT ignored"
 ```
-필수 도구(git·gh·jq·python3)가 없거나 gh가 로그인 안 돼 있으면 설치·로그인 방법을 안내하고 **중단**. 기기 도구는 여기서 보지 않는다 — repo-profiler가 상황을 조사하고 Step 4-1이 어댑터를 실제로 검사한다.
+필수 도구(git·jq·python3, 그리고 플랫폼 CLI — GitHub `gh` / GitLab `glab`)가 없거나 로그인 안 돼 있으면 설치·로그인 방법(`brew install glab` → `glab auth login --hostname {host}`)을 안내하고 **중단**.
+기획·proto 레포가 다른 호스트(예: 앱 GitLab, 기획 GitHub)면 그 플랫폼 CLI도 로그인돼 있어야 한다 — repo-profiler가 찾은 레포 후보를 보고 확인한다. 기기 도구는 여기서 보지 않는다 — repo-profiler가 상황을 조사하고 Step 4-1이 어댑터를 실제로 검사한다.
 
 ### 0. 기존 프로필
 
@@ -80,7 +84,9 @@ AskUserQuestion으로 묻는다 (한 번에 최대 4개, 후보를 선택지로,
   - 맞는 공용 어댑터가 없는 플랫폼·도구면: "레포 전용 어댑터를 만들어 검증" / "`none`으로 두기".
   어댑터를 정하고 만드는 일은 Step 4-1에서 한다 — 여기서는 방향만 받는다.
 - **테스트 코드 보존** (`빌드.test_retention`): `discard`(기본 — 작업 중 추가한 테스트를 통과 확인 뒤 지우고 커밋하지 않음) / `keep`(테스트도 커밋). 레포에 기존 테스트가 많고 CI가 돌리면 `keep`을 첫 선택지로.
-- **PR 원격** (`git.remote`): `git remote`가 둘 이상일 때만 (포크 구조면 PR을 올릴 쪽). 하나면 묻지 않고 키를 생략한다 (기본 origin).
+- **앱 레포 원격** (`git.remote`): `git remote`가 둘 이상일 때만 (포크 구조면 이슈·마일스톤이 있는 쪽). 하나면 묻지 않고 키를 생략한다 (기본 origin).
+- **코드 호스팅** (`git.platform`·`git.host`): Step 0-0의 `forge.sh platform`이 실패했을 때만 (사내 GitLab 주소처럼 이름만으로 모르는 호스트) — `github` / `gitlab`. 원격 URL의 호스트가 ssh 별칭이면 실제 호스트(`git.host`)도. 판정이 됐으면 키를 만들지 않는다.
+- **기획·proto 레포가 다른 호스트일 때**: `spec_repo`·`서버 계약.repo`에 호스트를 붙여 적는다 (`github.com/org/planning`). 같은 호스트면 `owner/name`만.
 
 "알아서 해"면 고른 값과 근거를 보고에 남긴다.
 
@@ -93,8 +99,9 @@ AskUserQuestion으로 묻는다 (한 번에 최대 4개, 후보를 선택지로,
 | 에셋 `asset_export` | 프로필 키만 (파일 없음) | 샘플 SVG 1개(`<svg … viewBox="0 0 24 24"><path d="M3 3h18v18H3z"/></svg>`)를 명령으로 변환해 결과가 프로젝트 형식인지 (Android: `<vector` 로 시작하는 xml) + `asset_lookup`을 레포에 있는 아이콘 이름 1개로 실행해 결과가 나오는지 |
 | 문구 `rule` | `{out}/adapters/string-resources.md` — 규칙·금지·확인 세 절 (계약) | "확인" 절 명령을 실제로 한 번 실행해 오류 없이 도는지 |
 
-이슈 어댑터는 GitHub이면 공용 — 만들지 않고 프로필에 `spec_adapter: builtin:gh-spec-issue`로 적는다 (경로를 적지 않는다 — 체인이 플러그인이면 경로가 레포 밖이다).
-GitHub이 아니면 계약에 맞춘 어댑터를 `{out}/adapters/`에 만들고 `list`·`fetch`를 실제 이슈 1건으로 실행해 확인한다.
+이슈 어댑터는 GitHub·GitLab이면 공용 — 만들지 않고 프로필에 `spec_adapter: builtin:spec-issue`로 적는다 (경로를 적지 않는다 — 체인이 플러그인이면 경로가 레포 밖이다).
+`spec_link_regex`는 플랫폼에 맞춘다 — GitHub `planning/issues/([0-9]+)`, GitLab `planning/-/issues/([0-9]+)`.
+둘 다 아니면(Jira 등) 계약에 맞춘 어댑터를 `{out}/adapters/`에 만들고 `list`·`fetch`를 실제 이슈 1건으로 실행해 확인한다.
 
 ### 4-1. 기기 어댑터 — 고르고, 없으면 만들고, 반드시 검사한다 (`화면 확인.mode`가 `none`이 아닐 때)
 
@@ -158,7 +165,7 @@ ${CLAUDE_PLUGIN_ROOT}/scripts/device-adapter-check.sh --out .impl-spec/setup/dev
 기기 어댑터: {builtin 이름 또는 만든 파일} — 검사 {ok | 미검증(사유) | 해당 없음(none)}
 어댑터: {만든 파일 목록}
 사용자 결정: {질문과 답}
-⚠️ 확인 필요: {confidence medium 이하로 남은 키, 환경 이슈(PATH·gh scope)}
+⚠️ 확인 필요: {confidence medium 이하로 남은 키, 환경 이슈(PATH·gh/glab 로그인·scope)}
 ```
 커밋하지 않는다 (CLAUDE.md 규칙 — 사용자가 요청할 때만).
 

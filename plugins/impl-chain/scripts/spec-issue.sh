@@ -1,13 +1,14 @@
 #!/bin/bash
-# GitHub 스펙 이슈 데이터 수집 — 공용 spec 어댑터 (GitHub + gh)
+# 스펙 이슈 데이터 수집 — 공용 spec 어댑터 (GitHub·GitLab 자동 — forge.sh)
 # 계약: impl-chain references/impl-profile-spec.md "spec 어댑터" (프로필 `이슈.spec_adapter`)
-# 프로필에서 읽는 값: 이슈.spec_repo, 이슈.spec_link_regex. 앱 레포는 `gh repo view`.
+# 프로필에서 읽는 값: 이슈.spec_repo, 이슈.spec_link_regex. 앱 레포는 원격 URL (forge.sh repo).
+# 기획 레포는 앱 레포와 다른 호스트·플랫폼이어도 된다 (`spec_repo: github.com/org/planning`).
 #
 # Usage:
-#   fetch-spec-issue.sh milestones                         → 열린 마일스톤 제목 (줄 단위)
-#   fetch-spec-issue.sh list <milestone>                   → "#{n} {title}" (내게 할당된 open 이슈, 전부 — 페이지 끝까지)
-#   fetch-spec-issue.sh search <keyword>                   → "#{n} [{milestone}] [{state}] {title}" (앱 레포 이슈 키워드 검색, 최근 갱신순 20개)
-#   fetch-spec-issue.sh fetch <milestone> <n> [spec_n]     → JSON {issue, issue_comments, spec, comments, spec_candidates}
+#   spec-issue.sh milestones                         → 열린 마일스톤 제목 (줄 단위)
+#   spec-issue.sh list <milestone>                   → "#{n} {title}" (내게 할당된 open 이슈, 전부 — 페이지 끝까지)
+#   spec-issue.sh search <keyword>                   → "#{n} [{milestone}] [{state}] {title}" (앱 레포 이슈 키워드 검색, 최근 갱신순 20개)
+#   spec-issue.sh fetch <milestone> <n> [spec_n]     → JSON {issue, issue_comments, spec, comments, spec_candidates}
 #     spec_n: 기획 이슈를 지정 (후보가 여럿일 때 사용자가 고른 것)
 #
 #   spec_candidates: 앱 이슈 본문·댓글에서 spec_link_regex로 찾은 기획 이슈 전부 [{number, title, found_in}]
@@ -15,24 +16,24 @@
 
 set -euo pipefail
 
-CMD=${1:?usage: fetch-spec-issue.sh milestones | list <milestone> | search <keyword> | fetch <milestone> <n> [spec_n]}
+CMD=${1:?usage: spec-issue.sh milestones | list <milestone> | search <keyword> | fetch <milestone> <n> [spec_n]}
 MILESTONE=${2:-}
 ISSUE=${3:-}
 SPEC_OVERRIDE=${4:-}
 HERE="$(cd "$(dirname "$0")" && pwd)"
+F="$HERE/forge.sh"
 PROFILE_GET() { "$HERE/impl-profile.sh" get "$1"; }
-REPO=$(gh repo view --json nameWithOwner --jq .nameWithOwner) || { echo "ERROR: 앱 레포를 알 수 없습니다 (gh repo view)" >&2; exit 1; }
+REPO=$("$F" repo) || { echo "ERROR: 앱 레포를 알 수 없습니다 (git 원격)" >&2; exit 1; }
 SPEC_REPO=$(PROFILE_GET 이슈.spec_repo) || exit 1
 SPEC_LINK_REGEX=$(PROFILE_GET 이슈.spec_link_regex) || exit 1
 
 case "$CMD" in
   milestones)
-    gh api "repos/$REPO/milestones?state=open&per_page=100" --jq '.[].title'
+    "$F" milestones
     exit 0 ;;
   search)
     KW=${2:?search 에는 키워드가 필요합니다}
-    gh api -X GET search/issues -f q="repo:$REPO is:issue $KW" -f sort=updated -f per_page=20 \
-      --jq '.items[] | "#\(.number) [\(.milestone.title // "마일스톤 없음")] [\(.state)] \(.title)"'
+    "$F" search "$KW" | jq -r '.[] | "#\(.number) [\(.milestone // "마일스톤 없음")] [\(.state)] \(.title)"'
     exit 0 ;;
   list|fetch) ;;
   *) echo "ERROR: 알 수 없는 명령 '$CMD' (milestones | list | search | fetch)" >&2; exit 1 ;;
@@ -42,49 +43,40 @@ if [ "$CMD" = "fetch" ] && [ -z "$ISSUE" ]; then
   echo "ERROR: fetch 에는 이슈 번호가 필요합니다" >&2; exit 1
 fi
 
-# NOTE: 아래 gh 호출에는 전부 `|| true`를 붙인다.
+# NOTE: 아래 조회에는 전부 `|| true`를 붙인다.
 # set -e 아래에서 VAR=$(failing-cmd) 는 스크립트를 즉시 종료시키므로,
 # `|| true` 없이는 바로 아래의 친절한 에러 메시지에 도달하지 못한다.
 
-MY_LOGIN=$(gh api user --jq '.login' 2>/dev/null || true)
+MY_LOGIN=$("$F" me 2>/dev/null || true)
 if [ -z "$MY_LOGIN" ]; then
-  echo "ERROR: gh 로그인이 필요합니다 (gh auth login)" >&2
+  echo "ERROR: 로그인이 필요합니다 ($("$F" platform 2>/dev/null || echo '?') — gh auth login / glab auth login)" >&2
   exit 1
 fi
 
-# 마일스톤 번호 조회 (state=all: 이미 닫힌 마일스톤도 조회 대상)
-MILESTONE_NUM=$(gh api "repos/$REPO/milestones?state=all&per_page=100" \
-  --jq ".[] | select(.title == \"$MILESTONE\") | .number" 2>/dev/null || true)
-if [ -z "$MILESTONE_NUM" ]; then
+# 마일스톤 확인 (닫힌 마일스톤도 조회 대상)
+if ! "$F" milestones-all 2>/dev/null | grep -qxF "$MILESTONE"; then
   echo "ERROR: 마일스톤 '$MILESTONE'을 찾을 수 없습니다." >&2
   echo "사용 가능한 마일스톤:" >&2
-  gh api "repos/$REPO/milestones?state=all&per_page=100" --jq '.[].title' >&2 2>/dev/null || true
+  "$F" milestones-all >&2 2>/dev/null || true
   exit 1
 fi
 
-# list: 목록 출력 후 종료
-# select(has("pull_request") | not): GitHub issues API는 PR도 함께 내려주므로 제외한다.
+# list: 목록 출력 후 종료 (PR·MR은 forge가 제외한다)
 if [ "$CMD" = "list" ]; then
-  gh api --paginate "repos/$REPO/issues?milestone=$MILESTONE_NUM&state=open&per_page=100" \
-    --jq "[.[]
-           | select(has(\"pull_request\") | not)
-           | select(.assignees | map(.login) | any(. == \"$MY_LOGIN\"))]
-          | .[] | \"#\(.number) \(.title)\"" 2>/dev/null || true
+  { "$F" issues-mine "$MILESTONE" 2>/dev/null || echo "[]"; } | jq -r '.[] | "#\(.number) \(.title)"'
   exit 0
 fi
 
 # 앱 이슈 조회
-APP_ISSUE=$(gh issue view "$ISSUE" --repo "$REPO" \
-  --json number,title,body,labels,url 2>/dev/null || true)
+APP_ISSUE=$("$F" issue "$REPO" "$ISSUE" 2>/dev/null || true)
 if [ -z "$APP_ISSUE" ]; then
   echo "ERROR: 이슈 #$ISSUE를 찾을 수 없습니다." >&2
   exit 1
 fi
 
 # 앱 이슈 댓글 (기획서 링크가 본문이 아니라 댓글에만 있는 경우가 많다)
-# --paginate 필수: 기본 페이지 크기(30)를 넘는 댓글이 잘린다 (실제로 겪은 버그 — 최종 문구 키 표 누락)
-APP_COMMENTS=$( { gh api --paginate "repos/$REPO/issues/$ISSUE/comments?per_page=100" \
-  --jq '.[] | {author: .user.login, created_at: .created_at, body: .body}' 2>/dev/null || true; } | jq -s '.')
+# 페이지 끝까지: 기본 페이지 크기(30)를 넘는 댓글이 잘린다 (실제로 겪은 버그 — 최종 문구 키 표 누락)
+APP_COMMENTS=$("$F" comments "$REPO" "$ISSUE" 2>/dev/null || true)
 [ -n "$APP_COMMENTS" ] || APP_COMMENTS="[]"
 
 # 기획서 이슈 번호 후보 추출 — 앱 이슈 본문·댓글에서 spec_link_regex(그룹 1 = 번호)에 걸리는 것 전부.
@@ -104,7 +96,8 @@ for num in $(printf '%s\n%s\n' "$IN_BODY" "$IN_COMMENTS" | sed '/^$/d' | sort -u
   where=""
   grep -qx "$num" <<< "$IN_BODY" && where="본문"
   grep -qx "$num" <<< "$IN_COMMENTS" && where="${where:+$where,}댓글"
-  title=$(gh issue view "$num" --repo "$SPEC_REPO" --json title --jq .title 2>/dev/null || echo "(조회 실패)")
+  title=$("$F" issue "$SPEC_REPO" "$num" 2>/dev/null | jq -r .title 2>/dev/null || true)
+  [ -n "$title" ] || title="(조회 실패)"
   SPEC_CANDIDATES=$(jq -c --argjson n "$num" --arg t "$title" --arg w "$where" \
     '. + [{number: $n, title: $t, found_in: $w}]' <<< "$SPEC_CANDIDATES")
 done
@@ -121,12 +114,10 @@ SPEC_BODY="{}"
 SPEC_COMMENTS="[]"
 
 if [ -n "$SPEC_NUMBER" ]; then
-  SPEC_BODY=$(gh issue view "$SPEC_NUMBER" --repo "$SPEC_REPO" \
-    --json number,title,body,url 2>/dev/null || echo "{}")
+  SPEC_BODY=$("$F" issue "$SPEC_REPO" "$SPEC_NUMBER" 2>/dev/null | jq -c 'del(.labels)' 2>/dev/null || true)
   [ -n "$SPEC_BODY" ] || SPEC_BODY="{}"
 
-  SPEC_COMMENTS=$( { gh api --paginate "repos/$SPEC_REPO/issues/$SPEC_NUMBER/comments?per_page=100" \
-    --jq '.[] | {author: .user.login, created_at: .created_at, body: .body}' 2>/dev/null || true; } | jq -s '.')
+  SPEC_COMMENTS=$("$F" comments "$SPEC_REPO" "$SPEC_NUMBER" 2>/dev/null || true)
   [ -n "$SPEC_COMMENTS" ] || SPEC_COMMENTS="[]"
 fi
 

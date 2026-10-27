@@ -1,6 +1,6 @@
 # impl-chain 프로필 규격
 
-체인(`impl-spec` / `analyze-spec` → `start-work` → `create-pr`, 에이전트 8개, `scripts/`의 상태 스크립트)은
+체인(`impl-spec` / `analyze-spec` → `start-work`, 에이전트 8개, `scripts/`의 상태 스크립트)은
 **레포 고유 값을 갖지 않는다.** 레포마다 다른 것은 전부 여기 둔다:
 
 ```
@@ -11,14 +11,15 @@
 
 **다른 레포로 옮기기:** 체인(스킬·에이전트·`scripts/`·`references/`)은 공통 자산이다 — 플러그인으로 설치하거나 그대로 복사하고,
 레포에서는 `/impl-setup`으로 `impl-chain/`만 만든다 (또는 이 형식대로 직접 작성). 스크립트는 레포 경로를 가정하지 않고 자기 위치 기준으로 서로를 찾는다.
-GitHub 이슈를 쓰면 이슈 어댑터는 공용 스크립트를 그대로 쓰고(`builtin:` 값), 레포마다 만드는 어댑터는 대응표(토큰·컴포넌트, 빈 표로 시작 가능)와 문구 규칙 정도다.
+GitHub·GitLab 이슈를 쓰면 이슈 어댑터는 공용 스크립트를 그대로 쓰고(`builtin:` 값), 레포마다 만드는 어댑터는 대응표(토큰·컴포넌트, 빈 표로 시작 가능)와 문구 규칙 정도다.
 
 **레포 요구 사항:** `.gitignore`에 `.impl-spec/` (상태 파일·이슈 원문·리서치가 여기 쌓인다 — 커밋되면 안 된다). `/impl-setup`이 추가하고, 프로필 게이트가 검사한다.
 
 ## 전제
 
-- 이슈·PR은 **GitHub + `gh` CLI**를 쓴다 (create-pr, 리뷰어의 원문 조회). 이슈 트래커가 다르면 spec 어댑터가 계약 형식으로 변환하고, create-pr은 수정이 필요하다.
-- 도구: `git`, `gh`(로그인), `jq`, `python3`, `bash`(3.2+ — macOS 기본 셸 가능). 화면 확인(`device`·`device-mock`)은 기기 어댑터가 쓰는 도구 — `builtin:android-device`면 Android SDK(adb, emulator), `builtin:ios-device`면 Xcode(`xcrun simctl`) + [AXe](https://github.com/cameroncooke/AXe)(`brew install cameroncooke/axe/axe`), `builtin:ios-real-device`면 libimobiledevice(`brew install libimobiledevice`) + 기기에서 도는 [WebDriverAgent](https://github.com/appium/WebDriverAgent).
+- 이슈·PR(MR)은 **GitHub(`gh`) 또는 GitLab(`glab`)** 이다. 체인은 CLI를 직접 부르지 않고 `scripts/forge.sh`를 쓴다 — 레포마다 호스트로 플랫폼을 고르므로 앱·기획·proto 레포가 서로 다른 플랫폼이어도 된다.
+  판정: `github.com` → GitHub / `gitlab.com` → GitLab / 앱 레포 호스트는 `git.platform` / 그 외는 `gh`·`glab` 로그인 호스트, API 응답(`/api/v4`·`/api/v3`). 이슈 트래커가 둘 다 아니면 spec 어댑터가 계약 형식으로 변환한다. 체인은 커밋까지 하고 push·PR(MR)은 하지 않는다.
+- 도구: `git`, 플랫폼 CLI(`gh` 또는 `glab`, 로그인 — 다른 플랫폼의 레포를 읽으면 그쪽도), `jq`, `python3`, `bash`(3.2+ — macOS 기본 셸 가능). 화면 확인(`device`·`device-mock`)은 기기 어댑터가 쓰는 도구 — `builtin:android-device`면 Android SDK(adb, emulator), `builtin:ios-device`면 Xcode(`xcrun simctl`) + [AXe](https://github.com/cameroncooke/AXe)(`brew install cameroncooke/axe/axe`), `builtin:ios-real-device`면 libimobiledevice(`brew install libimobiledevice`) + 기기에서 도는 [WebDriverAgent](https://github.com/appium/WebDriverAgent).
 - 공용 기기 어댑터는 Android(`builtin:android-device` — 기본값), iOS 시뮬레이터(`builtin:ios-device`), iOS 실기기(`builtin:ios-real-device`)가 있다. 그 외 플랫폼은 레포 전용 기기 어댑터를 `화면 확인.device_adapter`에 적는다. 에셋 export 예시는 Android 기준이다 (`asset_export`의 vector drawable) — 다른 플랫폼은 자기 명령을 적는다.
 
 ## 형식
@@ -35,7 +36,7 @@ exit 0이면 통과. 아니면 stderr의 문제 목록을 그대로 보여주고
 스크립트가 검사하는 것: 아래 표의 필수 키·조건부 필수 키, 모드 값 범위, 모드가 가리키는 파일·mock 스킬 존재, 스킬별 이슈 어댑터(해석·실행 가능)와 그 키, `.impl-spec/` gitignore.
 
 이슈 어댑터는 경로가 아니라 **해석해서** 부른다: `$(${CLAUDE_PLUGIN_ROOT}/scripts/impl-profile.sh adapter 이슈.spec_adapter) list 4.14.0`
-(`builtin:gh-spec-issue` → 체인 `scripts/`의 공용 어댑터, 그 외 값 → 레포 루트 기준 경로).
+(`builtin:spec-issue` → 체인 `scripts/`의 공용 어댑터 — 예전 이름 `builtin:gh-spec-issue`도 같다, 그 외 값 → 레포 루트 기준 경로).
 
 값 읽기도 같은 스크립트로 한다: `${CLAUDE_PLUGIN_ROOT}/scripts/impl-profile.sh get 빌드.compile` (없으면 exit 2).
 
@@ -47,16 +48,18 @@ exit 0이면 통과. 아니면 stderr의 문제 목록을 그대로 보여주고
 
 | 섹션 | 키 | 필수 | 의미 |
 |------|-----|------|------|
-| 이슈 | `spec_adapter` | analyze-spec 사용 시 | spec 어댑터. GitHub이면 `builtin:gh-spec-issue` (체인 공용), 아니면 레포 전용 어댑터의 레포 루트 기준 경로 |
-| | `spec_repo` | 공용 spec 어댑터면 | 기획서 이슈가 있는 레포 (`owner/name`) — 기획서 본문 파일 링크 조회에도 쓴다 |
-| | `spec_link_regex` | 공용 spec 어댑터면 | 앱 이슈 본문·댓글에서 기획 이슈 번호를 뽑는 정규식(python `re`, 그룹 1 = 번호). 예: `planning/issues/([0-9]+)` |
+| 이슈 | `spec_adapter` | analyze-spec 사용 시 | spec 어댑터. GitHub·GitLab이면 `builtin:spec-issue` (체인 공용), 아니면 레포 전용 어댑터의 레포 루트 기준 경로 |
+| | `spec_repo` | 공용 spec 어댑터면 | 기획서 이슈가 있는 레포 — 앱과 같은 호스트면 `owner/name`(GitLab 하위 그룹 `g/sub/proj` 가능), 다르면 `host/owner/name` (예: 앱 GitLab, 기획 `github.com/org/planning`). 기획서 본문 파일 링크 조회에도 쓴다 |
+| | `spec_link_regex` | 공용 spec 어댑터면 | 앱 이슈 본문·댓글에서 기획 이슈 번호를 뽑는 정규식(python `re`, 그룹 1 = 번호). 예: GitHub `planning/issues/([0-9]+)`, GitLab `planning/-/issues/([0-9]+)` |
 | | `string_table_hint` | | 기획자가 문구 키 표를 올리는 방식 (예: 댓글의 `키 \| ko` 표) |
 | 서버 계약 | `mode` | ✅ | `proto-repo` \| `none` |
-| | `repo` | mode=proto-repo | 서버 계약(proto) 레포 `owner/name` |
-| git | `standalone_base_candidates` | ✅ | 상태 파일 없는 단독 start-work/create-pr에서 base 선택지 |
+| | `repo` | mode=proto-repo | 서버 계약(proto) 레포 — `spec_repo`와 같은 형식 (다른 호스트면 `host/owner/name`) |
+| git | `standalone_base_candidates` | ✅ | 상태 파일 없는 단독 start-work에서 base 선택지 |
 | | `branch_format` | ✅ | 브랜치명 형식. `{접두사}/{이름}` 꼴이어야 한다 (`impl-state.sh`는 이 꼴만 검사) |
 | | `commit_format` | ✅ | 커밋 메시지 형식 |
-| | `remote` | | push·PR에 쓰는 원격 이름. 없으면 `origin` (포크 구조로 `upstream` 등을 쓰는 레포) |
+| | `remote` | | 앱 레포를 가리키는 원격 이름 (forge.sh가 앱 레포·호스트를 여기서 읽는다). 없으면 `origin` (포크 구조로 `upstream` 등을 쓰는 레포) |
+| | `platform` | | 앱 레포의 코드 호스팅 `github` \| `gitlab`. 없으면 `forge.sh`가 원격 호스트로 판정 — 사내 호스트처럼 판정이 안 될 때만 적는다 |
+| | `host` | | 앱 레포 API 호스트. 원격 URL의 호스트가 ssh 별칭(`git@github-work:…`)일 때만 |
 | 빌드 | `compile` | ✅ | 컴파일 명령 템플릿 (`{module}`) |
 | | `test` | ✅ | 유닛 테스트 명령 템플릿. 테스트 인프라가 없으면 `none` |
 | | `install` | 화면 확인.mode가 none이 아니면 | 기기 설치 명령. `{id}`가 있으면 visual-verifier가 기기 어댑터 `ensure`가 고른 기기 id로 채운다 |
@@ -104,7 +107,7 @@ exit 0이면 통과. 아니면 stderr의 문제 목록을 그대로 보여주고
 | | `hardcode` | 원문 문구 | 문자열 그대로 | 값 일치만 |
 | 화면 확인 | `device-mock` | — | — | start-work Step 8 visual-verifier 실행 (mock으로 케이스별 서버 응답) |
 | | `device` | — | — | visual-verifier 실행, mock 없이 도달 가능한 케이스만 확인 — 나머지는 MANUAL |
-| | `none` | — | — | visual-verifier 생략, visual todo는 PR에 "수동 확인 필요" |
+| | `none` | — | — | visual-verifier 생략, visual todo는 완료 보고에 "수동 확인 필요" |
 | 서버 계약 | `proto-repo` | — | — | spec-researcher proto 조사, analyze-spec Step 5 게이트 |
 | | `none` | — | — | proto 조사 생략, `proto_dependency = {required:false, status:"n/a"}` |
 

@@ -11,7 +11,7 @@ invocable: true
 
 마일스톤의 할당된 이슈를 고르고, 기획서(프로필 `이슈.spec_repo`)·댓글·서버 계약·코드를 조사해
 **출처가 달린 todo 목록과 구현 방향**을 만든다. 사용자가 승인하면 `.impl-spec/spec-{n}.json`에 기록하고,
-`start-work`·`create-pr`은 그 파일만 읽고 이어간다.
+`start-work`는 그 파일만 읽고 이어간다.
 
 **이 스킬의 품질이 곧 구현의 품질이다.** 여기서 요구를 빠뜨리거나 문구를 요약해 버리면,
 뒤 단계는 그 잘못된 todo를 정확하게 구현한다.
@@ -54,7 +54,7 @@ ${CLAUDE_PLUGIN_ROOT}/scripts/impl-profile.sh adapter 이슈.spec_adapter     # 
 ### 0. base 브랜치 = 지금 서 있는 브랜치
 
 **base는 고르지 않는다. 이 스킬을 실행한 로컬 브랜치가 base다.** 다른 base가 필요하면 사용자가 그 브랜치로 옮겨서 다시 실행한다.
-**origin은 보지 않는다** — 조사·작업 브랜치·리뷰 모두 로컬 base 기준이다. origin은 create-pr의 push 직전에만 확인한다(`check-pr-ready.sh`).
+**origin은 보지 않는다** — 조사·작업 브랜치·리뷰 모두 로컬 base 기준이다. push·PR은 체인 밖(사용자)에서 한다.
 ```bash
 ${CLAUDE_PLUGIN_ROOT}/scripts/detect-base.sh    # stdout = base 이름, stderr = 오류
 ```
@@ -261,7 +261,7 @@ python3 ${CLAUDE_PLUGIN_ROOT}/scripts/merge-ui-results.py .impl-spec/spec-{n}.dr
 |------|------|
 | 서버 작업 없음 | `{required:false, status:"n/a"}` |
 | `available` | 진행 |
-| `missing` / `unknown` | **AskUserQuestion**: ① 서버 proto 반영까지 보류 (여기서 종료, 상태 파일 안 씀) ② proto 의존성 버전 올리기를 todo에 포함 (proto PR이 머지된 경우만) ③ proto 없이 가능한 todo만 진행 (나머지는 `decisions`에 범위 외로) ④ **임시 반영 — 로컬 테스트 전용**: 서버 proto PR(머지 여부 무관) 원문에서 이 기능에 필요한 RPC·메시지·필드만 그대로 옮기는 todo T0 (`proto_dependency.status = "temp-local"`, acceptance에 PR 링크·커밋 sha·옮길 정의 목록). start-work는 T0에 한해 `.proto` 수정을 허용하고, **create-pr은 PR을 만들지 않는다** |
+| `missing` / `unknown` | **AskUserQuestion**: ① 서버 proto 반영까지 보류 (여기서 종료, 상태 파일 안 씀) ② proto 의존성 버전 올리기를 todo에 포함 (proto PR이 머지된 경우만) ③ proto 없이 가능한 todo만 진행 (나머지는 `decisions`에 범위 외로) ④ **임시 반영 — 로컬 테스트 전용**: 서버 proto PR(머지 여부 무관) 원문에서 이 기능에 필요한 RPC·메시지·필드만 그대로 옮기는 todo T0 (`proto_dependency.status = "temp-local"`, acceptance에 PR 링크·커밋 sha·옮길 정의 목록). start-work는 T0에 한해 `.proto` 수정을 허용하고, **완료 보고에 push·PR 금지 경고**를 띄운다 |
 
 `missing`인데 묻지 않고 진행하지 않는다 — start-work가 없는 필드로 컴파일 실패를 반복하게 된다.
 

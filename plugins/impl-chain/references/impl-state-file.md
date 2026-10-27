@@ -1,6 +1,6 @@
 # impl-spec 상태 파일 규격
 
-`analyze-spec` → `start-work` → `create-pr` 체인이 컨텍스트를 주고받는 **단일 진실 공급원**.
+`analyze-spec` → `start-work` 체인이 컨텍스트를 주고받는 **단일 진실 공급원**.
 
 리포트 본문을 파싱하거나 "대화 맥락에서 추론"하지 않는다. 각 단계는 이 파일만 읽고 쓴다.
 
@@ -17,7 +17,7 @@ $S todo  spec 4895 T1 done         # todo 하나 상태 갱신
 $S add-commit spec 4895            # HEAD를 commits에 추가
 $S stage spec 4895 implemented     # 전이 — 조건 미달이면 거부(exit 3)
 $S check-branch spec 4895          # 현재 브랜치 == .branch 확인
-$S clean spec 4895                 # pr_created일 때만 spec-4895.* 전부 삭제 (남은 이슈가 없으면 .impl-spec/ 째로) — impl-spec 마지막 단계
+$S clean spec 4895                 # implemented일 때만 spec-4895.* 삭제 — 화면 확인 리포트(spec-4895.visual/)만 남김 — impl-spec 마지막 단계
 ```
 
 `.impl-spec/` 안의 `*.issue.json`, `*.draft.json`은 상태 파일이 아니다 (`find`가 무시한다).
@@ -103,7 +103,6 @@ $S clean spec 4895                 # pr_created일 때만 spec-4895.* 전부 삭
   "stage": "analyzed",
   "commits": [],
   "verification": {},
-  "pr_url": null,
   "updated_at": "2026-09-30T05:00:00Z"
 }
 ```
@@ -113,7 +112,7 @@ $S clean spec 4895                 # pr_created일 때만 spec-4895.* 전부 삭
 | 필드 | 쓰는 단계 | 비고 |
 |------|----------|------|
 | `issue_*`, `spec_url`, `milestone` | analyze-spec | |
-| `base_branch`, `branch` | analyze-spec | `base_branch` = analyze-spec를 **실행한 로컬 브랜치** (`${CLAUDE_PLUGIN_ROOT}/scripts/detect-base.sh`, 고르거나 묻지 않음, origin에 없어도 됨 — 작업 브랜치는 그 로컬 tip에서 따고 리뷰는 `git merge-base {base_branch} HEAD` 기준. origin은 create-pr `check-pr-ready.sh`에서만 확인 — 체인 규칙. 상태 파일 없는 단독 start-work/create-pr은 각자 묻는다). `branch`는 analyze-spec가 제안. 이후 단계는 읽기만 |
+| `base_branch`, `branch` | analyze-spec | `base_branch` = analyze-spec를 **실행한 로컬 브랜치** (`${CLAUDE_PLUGIN_ROOT}/scripts/detect-base.sh`, 고르거나 묻지 않음, origin에 없어도 됨 — 작업 브랜치는 그 로컬 tip에서 따고 리뷰는 `git merge-base {base_branch} HEAD` 기준. 체인은 origin을 보지 않는다 — push·PR은 사용자가 한다. 상태 파일 없는 단독 start-work는 묻는다). `branch`는 analyze-spec가 제안. 이후 단계는 읽기만 |
 | `research_files` | analyze-spec | researcher 에이전트가 쓴 파일. reviewer가 원본 대조에 쓴다 |
 | `todo_items` | analyze-spec (생성), start-work (`status`) | 아래 todo 규칙 |
 | `decisions` / `open_questions` | analyze-spec | `init` 시점에 `open_questions`는 **반드시 빈 배열**. decision이 특정 todo에 영향을 주면 `todo_ids`. 선택: `evidence`(근거 — figma-ui-spec auto는 필수), `key`(figma-ui-spec 판정 키), `ui_spec`(나온 그룹의 ui-spec 파일 — 그룹 재실행 시 이 값으로 지운다) |
@@ -121,27 +120,26 @@ $S clean spec 4895                 # pr_created일 때만 spec-4895.* 전부 삭
 | `ui_specs` | analyze-spec Step 4-1 | `[{group, screens, file}]` — figma-ui-spec 결과. `figma.status=ok`이고 visual todo가 있으면 visual todo의 모든 화면을 덮어야 한다 (init 검사). start-work·리뷰어·visual-verifier가 ui-spec을 여기서 찾는다 |
 | `visual_cases` | analyze-spec Step 4-2 | 화면 확인 계획 — 아래 visual_cases 규칙. visual-verifier가 그대로 실행하고 `visual-report.py`가 리포트로 만든다 |
 | `decisions[].apply` | analyze-spec (생성), start-work Step 2-1 (반영) | 레포에 반영할 UI 결정 (컴포넌트·토큰 대응표 행, 에셋). 아래 apply 형식 |
-| `proto_dependency` | analyze-spec | 서버 작업 없으면 `{ "required": false, "status": "n/a" }`. `status`: `n/a` / `available` / `missing`(보류·부분 진행) / `temp-local`(서버 proto PR 원문에서 필요한 부분만 임시 반영 — 로컬 테스트 전용, start-work는 T0에 한해 `.proto` 수정 허용, create-pr은 PR 거부) |
+| `proto_dependency` | analyze-spec | 서버 작업 없으면 `{ "required": false, "status": "n/a" }`. `status`: `n/a` / `available` / `missing`(보류·부분 진행) / `temp-local`(서버 proto PR 원문에서 필요한 부분만 임시 반영 — 로컬 테스트 전용, start-work는 T0에 한해 `.proto` 수정 허용, 완료 보고에 push·PR 금지 경고) |
 | `size` | analyze-spec | `small` / `large` — start-work의 task 분할 여부 |
 | `apps` | analyze-spec Step 1-1 | 이번 작업에서 빌드·테스트할 화이트라벨 앱 이름 배열 (프로필 `빌드.apps`의 이름, 프로필 순서). 프로필에 `빌드.apps`가 없으면 생략. start-work가 앱마다 `{app}`을 채워 컴파일·테스트·화면 확인을 **전부** 한다 |
 | `compile_task`, `test_task` | analyze-spec | 프로필 `빌드.compile`/`빌드.test`의 `{module}`·`{variant}`(프로필 `빌드.module_variants`)를 채운 **실행할 전체 명령**. `{app}`은 남겨 둔다 (start-work가 `apps`마다 채움). 모르면 `null` → start-work가 채움 |
 | `tasks` | start-work (large만) | `[{id, todo_ids, files, done}]` — task의 compile·test 통과 확인 직후 `done: true` (task별 커밋 없음 — 커밋은 전체에 하나). 재개 시 done인 task는 건너뛴다 |
 | `commits`, `verification` | start-work | 아래 verification 형식 |
 | `previous_branch` | start-work | 브랜치 전환 전 메인 워크스페이스 브랜치 (돌아갈 곳 안내용) |
-| `pr_url` | create-pr | |
 | `stage` | `stage` 명령으로만 | |
 
 ### todo_items 규칙
 
 | 키 | 의미 |
 |----|------|
-| `id` | `T1`, `T2`… 테스트 이름·커밋·리뷰·PR 체크리스트가 모두 이 id로 연결된다 |
+| `id` | `T1`, `T2`… 테스트 이름·커밋·리뷰·완료 보고가 모두 이 id로 연결된다 |
 | `source` | 근거 위치 (기획서 본문/댓글 번호+날짜/proto). **근거 없는 todo는 만들 수 없다** — 사용자 결정이면 `decisions` 참조 |
 | `acceptance` | 관찰 가능한 완료 조건. **값·문구·조건·트리거(언제 실행되는가)** 를 원문 그대로 |
 | `verify` | `unit`(유닛 테스트로 검증) / `visual`(화면 확인) / `manual`(둘 다 불가 — 사유를 acceptance에) |
 | `figma_screens` | 이 todo가 구현하는 화면 id (`figma.screens[].id`). `figma.status=ok`면 **visual todo는 필수** — 스크립트가 검사 |
 | `status` | `pending` → `done` / `deferred`(사용자가 범위 외로 결정한 경우만) |
-| `note` | 검증 증거 한 줄 — `impl-state.sh todo … <status> "<note>"`로 기록. 형식: `unit: SeatItemTest#T1` (테스트를 커밋 전에 지웠으면 `unit: SeatItemTest#T1 (통과 확인 후 삭제)`) / `visual: pass` / `visual: skipped — 기기 없음` / `manual: {사유}` / `범위 외: {decision 질문}`. create-pr이 체크리스트를 이 값으로 만든다 |
+| `note` | 검증 증거 한 줄 — `impl-state.sh todo … <status> "<note>"`로 기록. 형식: `unit: SeatItemTest#T1` (테스트를 커밋 전에 지웠으면 `unit: SeatItemTest#T1 (통과 확인 후 삭제)`) / `visual: pass` / `visual: skipped — 기기 없음` / `manual: {사유}` / `범위 외: {decision 질문}`. 완료 보고가 todo별 결과를 이 값으로 보여준다 |
 
 ### visual_cases 규칙
 
@@ -193,9 +191,9 @@ analyze는 base 브랜치 위라 레포 파일을 쓰지 않는다. 반영은 st
   프로필 `빌드.test_retention`이 `discard`면 테스트 코드는 커밋에 없다 — `pass — {명령} (T1,T3) · 테스트 코드는 통과 확인 후 삭제`.
 - `commits`는 보통 1개다 (start-work는 작업 전체를 한 번에 커밋한다).
 - `visual`은 선택. visual-verifier가 `SKIPPED`를 돌려줬으면 `"skipped — {에이전트가 준 사유}"` (메인이 직접 기기 유무를 판단해 적지 않는다).
-- `visual_report`는 화면 확인을 했을 때의 리포트 경로. create-pr이 push 확인 화면에서 보여준다. `apps`가 2개 이상이면 앱마다 리포트가 있어 `{"shucle": ".impl-spec/spec-4895.visual/shucle/report.html", "gmaas": …}` 객체로 적는다.
+- `visual_report`는 화면 확인을 했을 때의 리포트 경로. start-work가 기록 직후 브라우저로 열고, impl-spec 정리(`clean`) 뒤에도 남는다. `apps`가 2개 이상이면 앱마다 리포트가 있어 `{"shucle": ".impl-spec/spec-4895.visual/shucle/report.html", "gmaas": …}` 객체로 적는다.
 - `apps`가 있으면 `compile`·`tests`·`visual`은 **고른 앱 전부**의 결과다 — 한 앱이라도 실패면 pass가 아니다. `tests`에는 앱별 명령을 적는다 (`pass — shucle: {명령} / gmaas: {명령} (T1,T3)`).
-- todo `status: done`은 "구현됨"이다. 검증 증거는 `verify` + `verification`이 따로 보여준다 (visual skipped면 PR에서 `[ ]`).
+- todo `status: done`은 "구현됨"이다. 검증 증거는 `verify` + `verification`이 따로 보여준다 (visual skipped면 완료 보고에 "수동 확인 필요").
 
 ### stage 전이
 
@@ -203,6 +201,5 @@ analyze는 base 브랜치 위라 레포 파일을 쓰지 않는다. 반영은 st
 |------|------------------------|
 | (없음) → `analyzed` | `init`: 필수 필드, todo 형식, `open_questions` 0개, research 파일 존재, 브랜치명 형식, `figma.status` ok/none, visual todo ↔ figma 화면 연결, visual todo 화면 ↔ `ui_specs` 커버, `ui_specs` 파일·asset source 존재, `apply` 형식, `visual_cases` 형식·visual todo마다 target 케이스 |
 | `analyzed` → `implemented` | commits ≥1, compile pass, tests 기록, review spec·quality PASS, 모든 todo `done`/`deferred` |
-| `implemented` → `pr_created` | `pr_url` 존재 |
 
 그 외 전이(건너뛰기, 되돌리기)는 거부된다. 되돌려야 하면 사용자에게 알리고 사용자가 파일을 직접 정리한다.

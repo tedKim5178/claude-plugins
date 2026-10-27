@@ -2,7 +2,7 @@
 # 분석을 실행한 브랜치(메인 워크스페이스의 현재 로컬 브랜치)를 base로 확정한다.
 # base를 고르거나 묻지 않는다 — 사용자가 서 있는 브랜치가 곧 base다.
 # origin은 보지 않는다: 작업 브랜치는 로컬 base에서 따고(setup-branch.sh),
-# origin 확인은 create-pr의 push 직전(check-pr-ready.sh)에서만 한다.
+# 체인은 origin을 보지 않는다 — push·PR은 체인 밖(사용자)에서 한다.
 #
 # Usage: detect-base.sh
 #   stdout: base 브랜치 이름 (exit 0일 때만)

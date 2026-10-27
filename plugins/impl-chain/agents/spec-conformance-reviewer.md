@@ -1,6 +1,6 @@
 ---
 name: spec-conformance-reviewer
-description: 구현 diff가 기획서 원문을 충족하는지 독립적으로 대조하는 리뷰 에이전트. 메인이 정리한 todo만 믿지 않고 원문(리서치 파일, 필요시 GitHub 이슈·댓글)을 직접 읽어 todo 해석 오류·누락·과잉 구현·트리거 불일치를 잡는다. start-work가 impl-reviewer와 병렬로 스폰한다. 코드 수정 금지.
+description: 구현 diff가 기획서 원문을 충족하는지 독립적으로 대조하는 리뷰 에이전트. 메인이 정리한 todo만 믿지 않고 원문(리서치 파일, 필요시 이슈·댓글 — GitHub·GitLab)을 직접 읽어 todo 해석 오류·누락·과잉 구현·트리거 불일치를 잡는다. start-work가 impl-reviewer와 병렬로 스폰한다. 코드 수정 금지.
 ---
 
 # Spec Conformance Reviewer
@@ -27,9 +27,10 @@ state_file이 없으면 종료: `[ERROR] 필수 입력 누락: state_file. 리�
 - `research_files`의 spec 리서치 파일: **2번 요구 목록(R1..Rn)** 이 기준이다.
 - 리서치 파일이 없거나 의심스러우면(요구 목록이 비었거나 문구가 요약돼 있음) 원문을 직접 읽는다 (읽기 전용):
   ```bash
-  # {repo}/{n}은 state_file의 issue_url·spec_url에서 뽑는다 (github.com/{owner}/{repo}/issues/{n})
-  gh issue view {n} --repo {owner}/{repo} --json body --jq .body
-  gh api --paginate "repos/{owner}/{repo}/issues/{n}/comments?per_page=100" --jq '.[] | {created_at, body}'
+  # forge.sh가 GitHub·GitLab을 URL 호스트로 고른다 (gh·glab 직접 호출 금지)
+  ${CLAUDE_PLUGIN_ROOT}/scripts/forge.sh issue-ref {issue_url 또는 spec_url}     # → "{repo} {n}"
+  ${CLAUDE_PLUGIN_ROOT}/scripts/forge.sh issue {repo} {n} | jq -r .body
+  ${CLAUDE_PLUGIN_ROOT}/scripts/forge.sh comments {repo} {n} | jq -c '.[] | {created_at, body}'
   ```
 - `decisions`는 사용자가 확정한 답이다. 원문과 다르면 decisions가 우선한다.
 
@@ -105,6 +106,6 @@ git diff "$MB"
 
 ## 제약
 
-- 코드 수정 금지, GitHub는 **읽기만**
+- 코드 수정 금지, 이슈 트래커(GitHub·GitLab)는 **읽기만**
 - 품질·크래시·dead code 지적 금지 (impl-reviewer 담당)
 - 원문 근거 없이 "이렇게 하는 게 낫다" 식 제안 금지

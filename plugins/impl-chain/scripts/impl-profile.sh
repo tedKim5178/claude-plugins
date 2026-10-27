@@ -5,8 +5,8 @@
 #   impl-profile.sh get <섹션>.<키>                                    값 출력. 없으면 exit 2
 #   impl-profile.sh check [--for analyze-spec|start-work]  게이트. 문제는 stderr, 실패 exit 1
 #   impl-profile.sh adapter <이슈.spec_adapter|화면 확인.device_adapter>   실행할 어댑터 절대 경로 출력
-#       값 `builtin:gh-spec-issue` / `builtin:android-device` / `builtin:ios-device` / `builtin:ios-real-device` → 이 스크립트와 같은 폴더의 공용 어댑터
-#       (예전 값 `.claude/scripts/gh-spec-issue.sh`도 builtin으로 본다) / 그 외 → 레포 루트 기준 경로 (레포 전용 어댑터)
+#       값 `builtin:spec-issue` / `builtin:android-device` / `builtin:ios-device` / `builtin:ios-real-device` → 이 스크립트와 같은 폴더의 공용 어댑터
+#       (예전 값 `builtin:gh-spec-issue`·`.claude/scripts/gh-spec-issue.sh`는 builtin:spec-issue로 본다) / 그 외 → 레포 루트 기준 경로 (레포 전용 어댑터)
 #       `화면 확인.device_adapter`는 키가 없으면 `builtin:android-device`로 본다. 값이 목록(쉼표 구분)이면 adapters를 쓴다 (exit 1)
 #   impl-profile.sh apps       `빌드.apps`(화이트라벨 앱)를 한 줄에 하나씩 `{이름}<TAB>{값}`으로 출력. 첫 줄이 기본 앱. 키가 없으면 출력 없이 exit 0
 #       값은 빌드 명령의 `{app}` 자리에 들어간다. 항목이 `이름`만이면 값 = 이름
@@ -23,7 +23,7 @@ PROFILE="${IMPL_PROFILE:-$ROOT/.claude/impl-chain/profile.md}"
 HERE="$(cd "$(dirname "$0")" && pwd)"
 
 # 공용 어댑터 — builtin:{이름} → $HERE/{이름}.sh. 이슈 어댑터를 쓰면 그 어댑터가 읽는 키도 필수가 된다
-BUILTIN_ADAPTERS="gh-spec-issue android-device ios-device ios-real-device"
+BUILTIN_ADAPTERS="spec-issue android-device ios-device ios-real-device"
 # 기기 어댑터 키 — 없으면 기본값 (기기 어댑터가 생기기 전에 쓴 프로필이 그대로 돌도록)
 DEVICE_ADAPTER_KEY="화면 확인.device_adapter"
 DEVICE_ADAPTER_DEFAULT="builtin:android-device"
@@ -82,11 +82,11 @@ resolve_value() {
     echo "$ROOT/$v"
   fi
 }
-# 값 → builtin 이름 (아니면 빈 문자열). 예전 레포 경로 값 .claude/scripts/gh-spec-issue.sh 도 builtin으로 본다
+# 값 → builtin 이름 (아니면 빈 문자열). 예전 이름 gh-spec-issue(GitHub 전용이던 때)·레포 경로 값도 spec-issue로 본다
 builtin_name() {
   case "$1" in
+    builtin:gh-spec-issue|.claude/scripts/gh-spec-issue.sh) echo spec-issue ;;
     builtin:*) echo "${1#builtin:}" ;;
-    .claude/scripts/gh-spec-issue.sh) basename "$1" .sh ;;
     *) echo "" ;;
   esac
 }
@@ -159,7 +159,7 @@ cmd_check() {
     p=$(resolve_adapter "$1" 2>&1) || { problems+=("$1: $p"); return; }
     [ -x "$p" ] || { problems+=("$1 가 가리키는 어댑터가 없거나 실행 불가: $v"); return; }
     case "$(builtin_name "$v")" in
-      gh-spec-issue) need "이슈.spec_repo"; need "이슈.spec_link_regex" ;;
+      spec-issue) need "이슈.spec_repo"; need "이슈.spec_link_regex" ;;
     esac
   }
 
@@ -188,7 +188,9 @@ cmd_check() {
   oneof "화면 확인.mode" device-mock device adb-mock adb none   # adb-mock·adb = device-mock·device와 같은 뜻 (Android 전용이던 때의 이름)
   # 선택 키: 작업 중 추가한 테스트 코드를 커밋에 남길지 (없으면 discard)
   local tr; tr=$(pget "빌드.test_retention" 2>/dev/null) && { [ "$tr" = discard ] || [ "$tr" = keep ] || problems+=("빌드.test_retention 값 '$tr' — 허용: discard keep"); }
-  # 선택 키: push·PR에 쓰는 원격 이름 (없으면 origin)
+  # 선택 키: 앱 레포의 코드 호스팅 플랫폼 (없으면 forge.sh가 원격 호스트로 판정)
+  local plat; plat=$(pget "git.platform" 2>/dev/null) && { [ "$plat" = github ] || [ "$plat" = gitlab ] || problems+=("git.platform 값 '$plat' — 허용: github gitlab"); }
+  # 선택 키: 앱 레포를 가리키는 원격 이름 (없으면 origin) — forge.sh가 앱 레포·호스트를 이 원격으로 정한다
   local remote; remote=$(pget "git.remote" 2>/dev/null) && { [[ "$remote" =~ ^[A-Za-z0-9._-]+$ ]] || problems+=("git.remote 값 '$remote' — 원격 이름 한 단어여야 함"); }
 
   # 화이트라벨 앱 — 빌드 명령(또는 module_variants)이 {app}을 쓰면 빌드.apps가 있어야 하고, 항목은 이름이 겹치지 않아야 한다
